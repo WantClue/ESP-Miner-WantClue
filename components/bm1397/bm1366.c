@@ -179,7 +179,7 @@ void BM1366_send_hash_frequency(float target_freq)
         }
     }
 
-    _send_BM1366((TYPE_CMD | GROUP_ALL | CMD_WRITE), freqbuf, 6, true);
+    _send_BM1366((TYPE_CMD | GROUP_ALL | CMD_WRITE), freqbuf, 6, false);
 
     ESP_LOGI(TAG, "Setting Frequency to %.2fMHz (%.2f)", target_freq, newf);
 }
@@ -445,6 +445,16 @@ static void _send_init(uint64_t frequency)
     unsigned char init3[7] = {0x55, 0xAA, 0x52, 0x05, 0x00, 0x00, 0x0A};
     _send_simple(init3, 7);
 
+    int chip_counter = 0;
+    while (true) {
+        if(SERIAL_rx(asic_response_buffer, 11, 1000) > 0) {
+            chip_counter++;
+        } else {
+            break;
+        }
+    }
+    ESP_LOGI(TAG, "%i chip(s) detected on the chain", chip_counter);
+
     unsigned char init4[11] = {0x55, 0xAA, 0x51, 0x09, 0x00, 0xA8, 0x00, 0x07, 0x00, 0x00, 0x03};
     _send_simple(init4, 11);
 
@@ -653,7 +663,7 @@ asic_result * BM1366_receive_work(void)
     return (asic_result *) asic_response_buffer;
 }
 
-uint16_t reverse_uint16(uint16_t num)
+static uint16_t reverse_uint16(uint16_t num)
 {
     return (num >> 8) | (num << 8);
 }
