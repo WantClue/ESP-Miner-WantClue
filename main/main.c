@@ -11,6 +11,7 @@
 #include "create_jobs_task.h"
 #include "esp_netif.h"
 #include "global_state.h"
+#include "send_diagnostics_task.h"
 #include "http_server.h"
 #include "nvs_config.h"
 #include "serial.h"
@@ -138,6 +139,7 @@ void app_main(void)
         (*GLOBAL_STATE.ASIC_functions.init_fn)(GLOBAL_STATE.POWER_MANAGEMENT_MODULE.frequency_value);
 
         xTaskCreate(stratum_task, "stratum admin", 8192, (void *) &GLOBAL_STATE, 5, NULL);
+        xTaskCreate(influxdb_sender_task, "InfluxDB Sender", 8192, (void *)&GLOBAL_STATE, 5, NULL);
         xTaskCreate(create_jobs_task, "stratum miner", 8192, (void *) &GLOBAL_STATE, 10, NULL);
         xTaskCreate(ASIC_task, "asic", 8192, (void *) &GLOBAL_STATE, 10, NULL);
         xTaskCreate(ASIC_result_task, "asic result", 8192, (void *) &GLOBAL_STATE, 15, NULL);

@@ -17,6 +17,7 @@ SRCS
     "./tasks/asic_result_task.c"
     "./tasks/user_input_task.c"
     "./tasks/power_management_task.c"
+    "./tasks/send_diagnostics_task.c"
     "./http_server/http_server.c"
     "./self_test/self_test.c"
 
