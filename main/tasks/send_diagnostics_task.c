@@ -3,53 +3,120 @@
 #include "esp_log.h"
 #include "bm1397.h"
 #include "mining.h"
+#include "mbedtls/sha256.h"
 #include "nvs_config.h"
 #include "serial.h"
-#include "DS4432U.h"
-#include "EMC2101.h"
-#include "INA260.h"
+#include "system.h"
 #include "global_state.h"
 #include "esp_http_client.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-void influxdb_sender_task(void *pvParameter) {
-    ESP_LOGI("InfluxDBSender", "Task started");
+#define MAX_HTTP_OUTPUT_BUFFER 2048 // Adjust size according to the expected response
+static const char *TAG = "InfluxDBSender";
+static GlobalState * GLOBAL_STATE;
 
-    // Configure HTTP client for InfluxDB
+// HTTP event handler
+static esp_err_t http_event_handler(esp_http_client_event_t *evt) {
+    switch (evt->event_id) {
+        case HTTP_EVENT_ERROR:
+            ESP_LOGD(TAG, "HTTP_EVENT_ERROR");
+            break;
+        case HTTP_EVENT_ON_CONNECTED:
+            ESP_LOGD(TAG, "HTTP_EVENT_ON_CONNECTED");
+            break;
+        case HTTP_EVENT_HEADER_SENT:
+            ESP_LOGD(TAG, "HTTP_EVENT_HEADER_SENT");
+            break;
+        case HTTP_EVENT_ON_HEADER:
+            ESP_LOGD(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
+            break;
+        case HTTP_EVENT_ON_DATA:
+            if (!esp_http_client_is_chunked_response(evt->client)) {
+                // Print the response for debugging (may be removed in production code)
+                ESP_LOGD(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
+                printf("%.*s\n", evt->data_len, (char*)evt->data);
+            }
+            break;
+        case HTTP_EVENT_ON_FINISH:
+            ESP_LOGD(TAG, "HTTP_EVENT_ON_FINISH");
+            break;
+        case HTTP_EVENT_DISCONNECTED:
+            ESP_LOGD(TAG, "HTTP_EVENT_DISCONNECTED");
+            break;
+        default:
+            break;
+    }
+    return ESP_OK;
+}
+
+
+// The task to send data to InfluxDB
+void influxdb_sender_task(void *pvParameters) {
+    ESP_LOGI(TAG, "InfluxDB Sender Task started");
+    GlobalState * GLOBAL_STATE = (GlobalState*)pvParameters;
+    SystemModule * systemModule = &GLOBAL_STATE->SYSTEM_MODULE;
+    PowerManagementModule * power_management = &GLOBAL_STATE->POWER_MANAGEMENT_MODULE;
+    char * username = nvs_config_get_string(NVS_CONFIG_STRATUM_USER, STRATUM_USER);
+    GLOBAL_STATE->asic_model = nvs_config_get_string(NVS_CONFIG_ASIC_MODEL, "");
+
+    static bool isUsernameHashed = false;
+    static char hashedUsername[65] = {0}; // 64 hex chars + null terminator, initialized to all zeros
+
+
+    if (!isUsernameHashed) {
+        char *username = nvs_config_get_string(NVS_CONFIG_STRATUM_USER, STRATUM_USER);
+        unsigned char hashOutput[32]; // SHA-256 outputs a 32-byte hash
+        mbedtls_sha256((const unsigned char *)username, strlen(username), hashOutput, 0); // 0 for SHA-256
+        
+        for (int i = 0; i < 32; i++) {
+            sprintf(&hashedUsername[i * 2], "%02x", hashOutput[i]);
+        }
+
+        isUsernameHashed = true;
+    }    
+
     esp_http_client_config_t config = {
-        .url = "http://10.0.10.7:8086/api/v2/write?org=nther&bucket=bitaxe&precision=s",
+        .url = "http://10.0.10.74:8080/telegraf",
         .method = HTTP_METHOD_POST,
     };
+
     esp_http_client_handle_t client = esp_http_client_init(&config);
-    esp_http_client_set_header(client, "Authorization", "Token VvA66ZLtvF-RcytZivMPqG7RThi2RZ_itxleXKsiw0wfxM3e3bTgBbrbi6mmUPFz84G8lNTcdCO3nHME1RSS5w==");
     
-    GlobalState * GLOBAL_STATE = (GlobalState *) pvParameters;
-
-
     while (1) {
-        // Collect data
-        char data[512];
+        char data[1024];
         snprintf(data, sizeof(data),
-                 "system_info board_version=\"%s\",temp=%.2f,hashRate=%llu,coreVoltage=%.2f,coreVoltageActual=%.2f,frequency=%u,version=\"%s\"",
-                 //GLOBAL_STATE->board_version,
-                 GLOBAL_STATE->POWER_MANAGEMENT_MODULE.chip_temp,
-                 GLOBAL_STATE->SYSTEM_MODULE.current_hashrate,
-                 GLOBAL_STATE->POWER_MANAGEMENT_MODULE.voltage,
-                 //ADC_get_vcore(),  // Assuming this gets the actual core voltage
-                 GLOBAL_STATE->ASIC_FREQ,  // Assuming this is how you get the ASIC frequency
-                 //esp_app_get_description()->version  // Assuming this gets the firmware version
-        );
+                 "system_info,id=%s,model=%s hashRate=%.1f,Freq=%f,asicCurrent=%f,inputVoltage=%f,power=%f,temp=%f",
+                 hashedUsername,
+                 GLOBAL_STATE->asic_model,
+                 systemModule->current_hashrate,
+                 power_management->frequency_value,
+                 power_management->current,
+                 power_management->voltage,
+                 power_management->power,
+                 power_management->chip_temp);
+        
+        // Open the HTTP connection
+        esp_http_client_open(client, strlen(data));
 
-        esp_http_client_set_post_field(client, data, strlen(data));
-        esp_err_t err = esp_http_client_perform(client);
+        // Write the POST data as binary
+        esp_http_client_write(client, data, strlen(data));
+
+        // Perform the HTTP POST request
+        esp_err_t err = esp_http_client_fetch_headers(client);
+
         if (err == ESP_OK) {
-            ESP_LOGI("InfluxDBSender", "Data sent successfully");
+            ESP_LOGI(TAG, "HTTP POST Request succeeded, status = %d", esp_http_client_get_status_code(client));
         } else {
-            ESP_LOGE("InfluxDBSender", "Failed to send data: %s", esp_err_to_name(err));
+            ESP_LOGE(TAG, "HTTP POST Request failed: %s", esp_err_to_name(err));
         }
-        esp_http_client_cleanup(client);
 
-        vTaskDelay(pdMS_TO_TICKS(30000));  // 30 seconds delay
+        // Close the HTTP connection
+        esp_http_client_close(client);
+
+        // Wait for 30 seconds before the next post
+        vTaskDelay(pdMS_TO_TICKS(30000));
     }
+
+    esp_http_client_cleanup(client);
 }
