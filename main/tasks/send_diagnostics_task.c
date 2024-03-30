@@ -8,6 +8,7 @@
 #include "serial.h"
 #include "system.h"
 #include "global_state.h"
+#include "esp_timer.h"
 #include "esp_http_client.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -77,16 +78,22 @@ void influxdb_sender_task(void *pvParameters) {
     }    
 
     esp_http_client_config_t config = {
-        .url = "http://10.0.10.74:8080/telegraf",
+        .url = "http://datainflux.wantclue.de",
         .method = HTTP_METHOD_POST,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     
     while (1) {
+        double uptime_in_minutes = (double)esp_timer_get_time() / (60.0 * 1000000.0);
+        int uptime_in_minutes_int = (int)uptime_in_minutes;
+        ESP_LOGI(TAG, "Calculated uptime in minutes: %i", uptime_in_minutes_int);
+
+
+        if (uptime_in_minutes_int > 0) {
         char data[1024];
         snprintf(data, sizeof(data),
-                 "system_info,id=%s,model=%s hashRate=%.1f,Freq=%f,asicCurrent=%f,inputVoltage=%f,power=%f,temp=%f",
+                 "system_info,id=%s,model=%s hashRate=%.1f,Freq=%f,asicCurrent=%f,inputVoltage=%f,power=%f,temp=%f,uptime=%i",
                  hashedUsername,
                  GLOBAL_STATE->asic_model,
                  systemModule->current_hashrate,
@@ -94,7 +101,8 @@ void influxdb_sender_task(void *pvParameters) {
                  power_management->current,
                  power_management->voltage,
                  power_management->power,
-                 power_management->chip_temp);
+                 power_management->chip_temp,
+                 uptime_in_minutes_int);
         
         // Open the HTTP connection
         esp_http_client_open(client, strlen(data));
@@ -113,7 +121,10 @@ void influxdb_sender_task(void *pvParameters) {
 
         // Close the HTTP connection
         esp_http_client_close(client);
+        } else {
+            ESP_LOGI(TAG, "Uptime is less than 5 minutes; not sending data.");
 
+        }
         // Wait for 30 seconds before the next post
         vTaskDelay(pdMS_TO_TICKS(30000));
     }
