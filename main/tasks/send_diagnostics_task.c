@@ -78,7 +78,7 @@ void influxdb_sender_task(void *pvParameters) {
     }    
 
     esp_http_client_config_t config = {
-        .url = "http://datainflux.wantclue.de",
+        .url = "http://data.wantcloud.ipv64.net/telegraf",
         .method = HTTP_METHOD_POST,
     };
 
@@ -90,7 +90,7 @@ void influxdb_sender_task(void *pvParameters) {
         ESP_LOGI(TAG, "Calculated uptime in minutes: %i", uptime_in_minutes_int);
 
 
-        if (uptime_in_minutes_int > 0) {
+        if (uptime_in_minutes_int > 5) {
         char data[1024];
         snprintf(data, sizeof(data),
                  "system_info,id=%s,model=%s hashRate=%.1f,Freq=%f,asicCurrent=%f,inputVoltage=%f,power=%f,temp=%f,uptime=%i",
