@@ -128,7 +128,7 @@ void app_main(void)
 
     xTaskCreate(USER_INPUT_task, "user input", 8192, (void *) &GLOBAL_STATE, 5, NULL);
     xTaskCreate(POWER_MANAGEMENT_task, "power mangement", 8192, (void *) &GLOBAL_STATE, 10, NULL);
-    uint8_t dtrue = nvs_config_get_u16(NVS_CONFIG_DIAGNOSTICS, 1);
+    uint8_t dtrue = nvs_config_get_u16(NVS_CONFIG_DIAGNOSTICS, 0);
     if(dtrue) {
         xTaskCreate(influxdb_sender_task, "influxdb_sender_task", 8192, (void *)&GLOBAL_STATE, 5, NULL);
 
