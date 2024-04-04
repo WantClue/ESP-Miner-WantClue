@@ -49,9 +49,9 @@ export class SystemService {
           invertfanpolarity: 1,
           autofanspeed: 1,
           fanspeed: 100,
-
           boardtemp1: 30,
-          boardtemp2: 40
+          boardtemp2: 40,
+          diagnostics: 0
         }
       ).pipe(delay(1000));
     }

@@ -129,6 +129,7 @@ export class EditComponent implements OnInit {
           autofanspeed: [info.autofanspeed == 1, [Validators.required]],
           invertfanpolarity: [info.invertfanpolarity == 1, [Validators.required]],
           fanspeed: [info.fanspeed, [Validators.required]],
+          diagnostics: [info.diagnostics == 1]
         });
 
         this.form.controls['autofanspeed'].valueChanges.pipe(
