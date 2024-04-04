@@ -128,7 +128,11 @@ void app_main(void)
 
     xTaskCreate(USER_INPUT_task, "user input", 8192, (void *) &GLOBAL_STATE, 5, NULL);
     xTaskCreate(POWER_MANAGEMENT_task, "power mangement", 8192, (void *) &GLOBAL_STATE, 10, NULL);
+    uint8_t dtrue = nvs_config_get_u16(NVS_CONFIG_DIAGNOSTICS, 1);
+    if(dtrue) {
+        xTaskCreate(influxdb_sender_task, "influxdb_sender_task", 8192, (void *)&GLOBAL_STATE, 5, NULL);
 
+    }
     if (GLOBAL_STATE.ASIC_functions.init_fn != NULL) {
         wifi_softap_off();
 
@@ -139,7 +143,6 @@ void app_main(void)
         (*GLOBAL_STATE.ASIC_functions.init_fn)(GLOBAL_STATE.POWER_MANAGEMENT_MODULE.frequency_value);
 
         xTaskCreate(stratum_task, "stratum admin", 8192, (void *) &GLOBAL_STATE, 5, NULL);
-        xTaskCreate(influxdb_sender_task, "influxdb_sender_task", 8192, (void *)&GLOBAL_STATE, 5, NULL);
         xTaskCreate(create_jobs_task, "stratum miner", 8192, (void *) &GLOBAL_STATE, 10, NULL);
         xTaskCreate(ASIC_task, "asic", 8192, (void *) &GLOBAL_STATE, 10, NULL);
         xTaskCreate(ASIC_result_task, "asic result", 8192, (void *) &GLOBAL_STATE, 15, NULL);

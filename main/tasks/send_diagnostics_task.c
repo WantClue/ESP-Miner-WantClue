@@ -89,7 +89,6 @@ void influxdb_sender_task(void *pvParameters) {
         int uptime_in_minutes_int = (int)uptime_in_minutes;
         ESP_LOGI(TAG, "Calculated uptime in minutes: %i", uptime_in_minutes_int);
 
-
         if (uptime_in_minutes_int > 5) {
         char data[1024];
         snprintf(data, sizeof(data),
@@ -124,7 +123,7 @@ void influxdb_sender_task(void *pvParameters) {
         } else {
             ESP_LOGI(TAG, "Uptime is less than 5 minutes; not sending data.");
 
-        }
+        }       
         // Wait for 30 seconds before the next post
         vTaskDelay(pdMS_TO_TICKS(30000));
     }
