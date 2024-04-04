@@ -141,6 +141,14 @@
             </div>
         </div>
 
+        <div class="col-12 md:col-4">
+            <div class="field-checkbox">
+                <p-checkbox name="diagnostics" formControlName="diagnostics" inputId="diagnostics"
+                    [binary]="true"></p-checkbox>
+                <label for="diagnostics">Enable Diagnostics</label>
+            </div>
+        </div>
+
 
         <div *ngIf="form.controls['autofanspeed'].value != true">
             <div class="col-12" *ngIf="form.controls['autofanspeed'].value != true">
