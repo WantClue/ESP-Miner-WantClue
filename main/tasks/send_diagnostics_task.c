@@ -60,7 +60,7 @@ void influxdb_sender_task(void *pvParameters) {
     PowerManagementModule * power_management = &GLOBAL_STATE->POWER_MANAGEMENT_MODULE;
     char * username = nvs_config_get_string(NVS_CONFIG_STRATUM_USER, STRATUM_USER);
     GLOBAL_STATE->asic_model = nvs_config_get_string(NVS_CONFIG_ASIC_MODEL, "");
-    GLOBAL_STATE->asic_voltage = nvs_config_get_string(NVS_CONFIG_ASIC_VOLTAGE, "");
+    double asic_voltage = nvs_config_get_u16(NVS_CONFIG_ASIC_VOLTAGE, 0);
 
 
     static bool isUsernameHashed = false;
@@ -99,7 +99,7 @@ void influxdb_sender_task(void *pvParameters) {
                  GLOBAL_STATE->asic_model,
                  systemModule->current_hashrate,
                  power_management->frequency_value,
-                 power_management->asic_voltage,
+                 asic_voltage,
                  power_management->voltage,
                  power_management->power,
                  power_management->chip_temp,
