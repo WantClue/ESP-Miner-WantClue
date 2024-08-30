@@ -79,7 +79,8 @@ void app_main(void)
                                         .receive_result_fn = BM1368_proccess_work,
                                         .set_max_baud_fn = BM1368_set_max_baud,
                                         .set_difficulty_mask_fn = BM1368_set_job_difficulty_mask,
-                                        .send_work_fn = BM1368_send_work};
+                                        .send_work_fn = BM1368_send_work,
+                                        .send_hash_frequency_fn = BM1366_send_hash_frequency};
         //GLOBAL_STATE.asic_job_frequency_ms = (NONCE_SPACE / (double) (GLOBAL_STATE.POWER_MANAGEMENT_MODULE.frequency_value * BM1368_CORE_COUNT * 1000)) / (double) GLOBAL_STATE.asic_count; // version-rolling so Small Cores have different Nonce Space
         GLOBAL_STATE.asic_job_frequency_ms = 500; //ms
         GLOBAL_STATE.initial_ASIC_difficulty = BM1368_INITIAL_DIFFICULTY;
