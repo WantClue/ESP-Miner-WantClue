@@ -1,8 +1,9 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
 
 #include "driver/uart.h"
 
@@ -19,6 +20,8 @@
 #define BUF_SIZE (1024)
 
 static const char *TAG = "serial";
+
+static pthread_mutex_t tx_mute = PTHREAD_MUTEX_INITIALIZER;
 
 void SERIAL_init(void)
 {
@@ -51,14 +54,18 @@ void SERIAL_set_baud(int baud)
 
 int SERIAL_send(uint8_t *data, int len, bool debug)
 {
-    if (debug)
-    {
+    // lock the transport
+    pthread_mutex_lock(&tx_mute);
+    if (debug) {
         printf("tx: ");
-        prettyHex((unsigned char *)data, len);
+        prettyHex((unsigned char *) data, len);
         printf("\n");
     }
 
-    return uart_write_bytes(UART_NUM_1, (const char *)data, len);
+    int written = uart_write_bytes(UART_NUM_1, (const char *) data, len);
+    pthread_mutex_unlock(&tx_mute);
+
+    return written;
 }
 
 /// @brief waits for a serial response from the device
@@ -69,15 +76,15 @@ int16_t SERIAL_rx(uint8_t *buf, uint16_t size, uint16_t timeout_ms)
 {
     int16_t bytes_read = uart_read_bytes(UART_NUM_1, buf, size, timeout_ms / portTICK_PERIOD_MS);
 
-    #if BM1937_SERIALRX_DEBUG || BM1366_SERIALRX_DEBUG || BM1368_SERIALRX_DEBUG
+#if BM1937_SERIALRX_DEBUG || BM1366_SERIALRX_DEBUG || BM1368_SERIALRX_DEBUG
     size_t buff_len = 0;
     if (bytes_read > 0) {
         uart_get_buffered_data_len(UART_NUM_1, &buff_len);
         printf("rx: ");
-        prettyHex((unsigned char*) buf, bytes_read);
+        prettyHex((unsigned char *) buf, bytes_read);
         printf(" [%d]\n", buff_len);
     }
-    #endif
+#endif
 
     return bytes_read;
 }
@@ -85,16 +92,15 @@ int16_t SERIAL_rx(uint8_t *buf, uint16_t size, uint16_t timeout_ms)
 void SERIAL_debug_rx(void)
 {
     int ret;
-    uint8_t buf[100];
+    uint8_t buf[CHUNK_SIZE];
 
     ret = SERIAL_rx(buf, 100, 20);
-    if (ret < 0)
-    {
+    if (ret < 0) {
         fprintf(stderr, "unable to read data\n");
         return;
     }
 
-    memset(buf, 0, 100);
+    memset(buf, 0, 1024);
 }
 
 void SERIAL_clear_buffer(void)

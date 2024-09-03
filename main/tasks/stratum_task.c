@@ -94,7 +94,9 @@ void stratum_task(void * pvParameters)
         {
             ESP_LOGI(TAG, "Get IP for URL: %s", stratum_url);
             dns_gethostbyname(stratum_url, &ip_Addr, dns_found_cb, NULL);
-            while (!bDNSFound);
+            while (!bDNSFound) {
+               vTaskDelay(100 / portTICK_PERIOD_MS);
+            };
 
             if (bDNSInvalid) {
                 ESP_LOGE(TAG, "DNS lookup failed for URL: %s", stratum_url);
