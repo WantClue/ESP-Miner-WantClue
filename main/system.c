@@ -176,7 +176,7 @@ static void _show_overheat_screen(GlobalState * GLOBAL_STATE)
     }
 }
 
-static void _update_hashrate(GlobalState * GLOBAL_STATE)
+/*static void _update_hashrate(GlobalState * GLOBAL_STATE)
 {
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
 
@@ -191,33 +191,13 @@ static void _update_hashrate(GlobalState * GLOBAL_STATE)
             float efficiency = GLOBAL_STATE->POWER_MANAGEMENT_MODULE.power / (module->current_hashrate / 1000.0);
             OLED_clearLine(0);
             memset(module->oled_buf, 0, 20);
-            snprintf(module->oled_buf, 20, "Gh%s: %.1f J/Th: %.1f", module->historical_hashrate_init < HISTORY_LENGTH ? "*" : "",
-                    module->current_hashrate, efficiency);
+            snprintf(module->oled_buf, 20, "Gh%s: %.1f", module->historical_hashrate_init < HISTORY_LENGTH ? "*" : "",
+                    module->current_hashrate);
             OLED_writeString(0, 0, module->oled_buf);
             break;
         default:
     }
-}
-
-static void _update_shares(GlobalState * GLOBAL_STATE)
-{
-    SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
-
-    if (module->screen_page != 0) {
-        return;
-    }
-    switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
-            OLED_clearLine(1);
-            memset(module->oled_buf, 0, 20);
-            snprintf(module->oled_buf, 20, "A/R: %llu/%llu", module->shares_accepted, module->shares_rejected);
-            OLED_writeString(0, 1, module->oled_buf);
-            break;
-        default:
-    }
-}
+}*/
 
 static void _update_best_diff(GlobalState * GLOBAL_STATE)
 {
@@ -255,7 +235,7 @@ static void _clear_display(GlobalState * GLOBAL_STATE)
     }
 }
 
-static void _update_system_info(GlobalState * GLOBAL_STATE)
+static void _update_screen_one(GlobalState * GLOBAL_STATE)
 {
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
     PowerManagementModule * power_management = &GLOBAL_STATE->POWER_MANAGEMENT_MODULE;
@@ -265,49 +245,54 @@ static void _update_system_info(GlobalState * GLOBAL_STATE)
         case DEVICE_ULTRA:
         case DEVICE_SUPRA:
             if (OLED_status()) {
-
+                float efficiency = GLOBAL_STATE->POWER_MANAGEMENT_MODULE.power / (module->current_hashrate / 1000.0);
+                
                 memset(module->oled_buf, 0, 20);
-                snprintf(module->oled_buf, 20, " Fan: %d RPM", power_management->fan_rpm);
+                snprintf(module->oled_buf, 20, "Gh/s: %.2f", module->current_hashrate);
                 OLED_writeString(0, 0, module->oled_buf);
 
                 memset(module->oled_buf, 0, 20);
-                snprintf(module->oled_buf, 20, "Temp: %.1f C", power_management->chip_temp_avg);
+                snprintf(module->oled_buf, 20, "J/Th: %.2f", efficiency);
                 OLED_writeString(0, 1, module->oled_buf);
 
                 memset(module->oled_buf, 0, 20);
-                snprintf(module->oled_buf, 20, " Pwr: %.3f W", power_management->power);
+                snprintf(module->oled_buf, 20, "BD: %s", module->best_diff_string);
                 OLED_writeString(0, 2, module->oled_buf);
 
                 memset(module->oled_buf, 0, 20);
-                snprintf(module->oled_buf, 20, " %i mV: %i mA", (int) power_management->voltage, (int) power_management->current);
+                snprintf(module->oled_buf, 20, "Temp: %.1f C", power_management->chip_temp_avg);
                 OLED_writeString(0, 3, module->oled_buf);
             }
             break;
         default:
+            break;
     }
 }
 
-static void _update_esp32_info(GlobalState * GLOBAL_STATE)
+static void _update_screen_two(GlobalState * GLOBAL_STATE)
 {
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
-    uint32_t free_heap_size = esp_get_free_heap_size();
-
-    uint16_t vcore = VCORE_get_voltage_mv(GLOBAL_STATE);
 
     switch (GLOBAL_STATE->device_model) {
         case DEVICE_MAX:
         case DEVICE_ULTRA:
         case DEVICE_SUPRA:
             if (OLED_status()) {
-
+                // Pool URL
                 memset(module->oled_buf, 0, 20);
-                snprintf(module->oled_buf, 20, "FH: %lu bytes", free_heap_size);
+                snprintf(module->oled_buf, 20, "Pool: %.13s", module->pool_url);
                 OLED_writeString(0, 0, module->oled_buf);
 
+                // Version (truncated to fit)
                 memset(module->oled_buf, 0, 20);
-                snprintf(module->oled_buf, 20, "vCore: %u mV", vcore);
+                const char* version = esp_app_get_description()->version;
+                snprintf(module->oled_buf, 20, "Ver: %.14s", version);
+                if (strlen(version) > 14) {
+                    strncpy(module->oled_buf + 18, "..", 2);
+                }
                 OLED_writeString(0, 1, module->oled_buf);
 
+                // IP Address
                 esp_netif_get_ip_info(netif, &ip_info);
                 char ip_address_str[IP4ADDR_STRLEN_MAX];
                 esp_ip4addr_ntoa(&ip_info.ip, ip_address_str, IP4ADDR_STRLEN_MAX);
@@ -315,11 +300,10 @@ static void _update_esp32_info(GlobalState * GLOBAL_STATE)
                 memset(module->oled_buf, 0, 20);
                 snprintf(module->oled_buf, 20, "IP: %s", ip_address_str);
                 OLED_writeString(0, 2, module->oled_buf);
-
-                OLED_writeString(0, 3, esp_app_get_description()->version);
             }
             break;
         default:
+            break;
     }
 }
 
@@ -370,35 +354,7 @@ static void _update_connection(GlobalState * GLOBAL_STATE)
     }
 }
 
-static void _update_system_performance(GlobalState * GLOBAL_STATE)
-{
-    SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
-    // Calculate the uptime in seconds
-    double uptime_in_seconds = (esp_timer_get_time() - module->start_time) / 1000000;
-    int uptime_in_days = uptime_in_seconds / (3600 * 24);
-    int remaining_seconds = (int) uptime_in_seconds % (3600 * 24);
-    int uptime_in_hours = remaining_seconds / 3600;
-    remaining_seconds %= 3600;
-    int uptime_in_minutes = remaining_seconds / 60;
 
-    switch (GLOBAL_STATE->device_model) {
-        case DEVICE_MAX:
-        case DEVICE_ULTRA:
-        case DEVICE_SUPRA:
-            if (OLED_status()) {
-
-                _update_hashrate(GLOBAL_STATE);
-                _update_shares(GLOBAL_STATE);
-                _update_best_diff(GLOBAL_STATE);
-
-                memset(module->oled_buf, 0, 20);
-                snprintf(module->oled_buf, 20, "UT: %dd %ih %im", uptime_in_days, uptime_in_hours, uptime_in_minutes);
-                OLED_writeString(0, 2, module->oled_buf);
-            }
-            break;
-        default:
-    }
-}
 
 static void show_ap_information(const char * error, GlobalState * GLOBAL_STATE)
 {
@@ -523,7 +479,7 @@ void SYSTEM_task(void * pvParameters)
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
 
     _init_system(GLOBAL_STATE);
-    user_input_queue = xQueueCreate(10, sizeof(char[10])); // Create a queue to handle user input events
+    user_input_queue = xQueueCreate(10, sizeof(char[10]));
 
     _clear_display(GLOBAL_STATE);
     _init_connection(GLOBAL_STATE);
@@ -536,48 +492,41 @@ void SYSTEM_task(void * pvParameters)
         vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
 
-    // show the connection screen
     while (!module->startup_done) {
         _update_connection(GLOBAL_STATE);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 
     while (1) {
-        // Check for overheat mode
         if (module->overheat_mode == 1) {
             _show_overheat_screen(GLOBAL_STATE);
-            vTaskDelay(5000 / portTICK_PERIOD_MS);  // Update every 5 seconds
-            SYSTEM_update_overheat_mode(GLOBAL_STATE);  // Check for changes
-            continue;  // Skip the normal screen cycle
+            vTaskDelay(5000 / portTICK_PERIOD_MS);
+            SYSTEM_update_overheat_mode(GLOBAL_STATE);
+            continue;
         }
 
-        // Automatically cycle through screens
-        for (int screen = 0; screen < 3; screen++) {
+        for (int screen = 0; screen < 2; screen++) {
             _clear_display(GLOBAL_STATE);
             module->screen_page = screen;
 
             switch (module->screen_page) {
                 case 0:
-                    _update_system_performance(GLOBAL_STATE);
+                    _update_screen_one(GLOBAL_STATE);
                     break;
                 case 1:
-                    _update_system_info(GLOBAL_STATE);
-                    break;
-                case 2:
-                    _update_esp32_info(GLOBAL_STATE);
+                    _update_screen_two(GLOBAL_STATE);
                     break;
             }
 
-            // Wait for 10 seconds or until a button press
             for (int i = 0; i < 10; i++) {
                 if (xQueueReceive(user_input_queue, &input_event, pdMS_TO_TICKS(1000))) {
                     if (strcmp(input_event, "SHORT") == 0) {
                         ESP_LOGI(TAG, "Short button press detected, switching to next screen");
-                        screen = (screen + 1) % 3; // Move to next screen
+                        screen = (screen + 1) % 2; // Move to next screen
                         break;
                     } else if (strcmp(input_event, "LONG") == 0) {
                         ESP_LOGI(TAG, "Long button press detected, toggling WiFi SoftAP");
-                        toggle_wifi_softap(); // Toggle AP 
+                        toggle_wifi_softap();
                     }
                 }
             }
@@ -590,14 +539,12 @@ void SYSTEM_notify_accepted_share(GlobalState * GLOBAL_STATE)
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
 
     module->shares_accepted++;
-    _update_shares(GLOBAL_STATE);
 }
 void SYSTEM_notify_rejected_share(GlobalState * GLOBAL_STATE)
 {
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
 
     module->shares_rejected++;
-    _update_shares(GLOBAL_STATE);
 }
 
 void SYSTEM_notify_mining_started(GlobalState * GLOBAL_STATE)
@@ -659,7 +606,7 @@ void SYSTEM_notify_found_nonce(GlobalState * GLOBAL_STATE, double found_diff, ui
         module->current_hashrate = ((module->current_hashrate * 9) + rolling_rate) / 10;
     }
 
-    _update_hashrate(GLOBAL_STATE);
+    //_update_hashrate(GLOBAL_STATE);
 
     // logArrayContents(historical_hashrate, HISTORY_LENGTH);
     // logArrayContents(historical_hashrate_time_stamps, HISTORY_LENGTH);
