@@ -497,6 +497,9 @@ void SYSTEM_task(void * pvParameters)
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 
+    int current_screen = 0;
+    TickType_t last_update_time = xTaskGetTickCount();
+
     while (1) {
         if (module->overheat_mode == 1) {
             _show_overheat_screen(GLOBAL_STATE);
@@ -505,32 +508,43 @@ void SYSTEM_task(void * pvParameters)
             continue;
         }
 
-        for (int screen = 0; screen < 2; screen++) {
-            _clear_display(GLOBAL_STATE);
-            module->screen_page = screen;
+        // Update the current screen
+        _clear_display(GLOBAL_STATE);
+        module->screen_page = current_screen;
 
-            switch (module->screen_page) {
-                case 0:
-                    _update_screen_one(GLOBAL_STATE);
-                    break;
-                case 1:
-                    _update_screen_two(GLOBAL_STATE);
-                    break;
-            }
+        switch (current_screen) {
+            case 0:
+                _update_screen_one(GLOBAL_STATE);
+                break;
+            case 1:
+                _update_screen_two(GLOBAL_STATE);
+                break;
+        }
 
-            for (int i = 0; i < 10; i++) {
-                if (xQueueReceive(user_input_queue, &input_event, pdMS_TO_TICKS(1000))) {
-                    if (strcmp(input_event, "SHORT") == 0) {
-                        ESP_LOGI(TAG, "Short button press detected, switching to next screen");
-                        screen = (screen + 1) % 2; // Move to next screen
-                        break;
-                    } else if (strcmp(input_event, "LONG") == 0) {
-                        ESP_LOGI(TAG, "Long button press detected, toggling WiFi SoftAP");
-                        toggle_wifi_softap();
-                    }
+        // Wait for user input or timeout
+        bool input_received = false;
+        TickType_t current_time = xTaskGetTickCount();
+        TickType_t wait_time = pdMS_TO_TICKS(10000) - (current_time - last_update_time);
+
+        if (wait_time > 0) {
+            if (xQueueReceive(user_input_queue, &input_event, wait_time) == pdTRUE) {
+                input_received = true;
+                if (strcmp(input_event, "SHORT") == 0) {
+                    ESP_LOGI(TAG, "Short button press detected, switching to next screen");
+                    current_screen = (current_screen + 1) % 2;
+                } else if (strcmp(input_event, "LONG") == 0) {
+                    ESP_LOGI(TAG, "Long button press detected, toggling WiFi SoftAP");
+                    toggle_wifi_softap();
                 }
             }
         }
+
+        // If no input received and 10 seconds have passed, switch to the next screen
+        if (!input_received && (xTaskGetTickCount() - last_update_time) >= pdMS_TO_TICKS(10000)) {
+            current_screen = (current_screen + 1) % 2;
+        }
+
+        last_update_time = xTaskGetTickCount();
     }
 }
 
