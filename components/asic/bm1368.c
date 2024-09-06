@@ -167,7 +167,7 @@ bool BM1368_send_hash_frequency(float target_freq) {
     return true;
 }
 
-bool do_frequency_transition(float target_frequency) {
+static bool do_frequency_transition(float target_frequency) {
     float step = 6.25;
     float current = current_frequency;
     float target = target_frequency;

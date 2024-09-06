@@ -154,7 +154,6 @@ void POWER_MANAGEMENT_task(void * pvParameters)
         }
 
         power_management->fan_rpm = EMC2101_get_fan_speed();
-
         switch (GLOBAL_STATE->device_model) {
             case DEVICE_MAX:
                 power_management->chip_temp_avg = EMC2101_get_external_temp();
@@ -272,6 +271,8 @@ void POWER_MANAGEMENT_task(void * pvParameters)
         }
 
         // New voltage and frequency adjustment code
+        uint16_t last_core_voltage = 0.0;
+        uint16_t last_asic_frequency = power_management->frequency_value;
         uint16_t core_voltage = nvs_config_get_u16(NVS_CONFIG_ASIC_VOLTAGE, CONFIG_ASIC_VOLTAGE);
         uint16_t asic_frequency = nvs_config_get_u16(NVS_CONFIG_ASIC_FREQ, CONFIG_ASIC_FREQUENCY);
 
@@ -282,12 +283,10 @@ void POWER_MANAGEMENT_task(void * pvParameters)
         }
 
         if (asic_frequency != last_asic_frequency) {
-            ESP_LOGI(TAG, "New ASIC frequency requested: %uMHz (current: %uMHz)", asic_frequency, last_asic_frequency);
-            if (do_frequency_transition((float)asic_frequency)) {
-                power_management->frequency_value = (float)asic_frequency;
-                ESP_LOGI(TAG, "Successfully transitioned to new ASIC frequency: %uMHz", asic_frequency);
-            } else {
-                ESP_LOGE(TAG, "Failed to transition to new ASIC frequency: %uMHz", asic_frequency);
+            ESP_LOGI(TAG, "setting new asic frequency to %uMHz", asic_frequency);
+            // if PLL setting was found save it in the struct
+            if ((*GLOBAL_STATE->ASIC_functions.send_hash_frequency_fn)((float) asic_frequency)) {
+                power_management->frequency_value = (float) asic_frequency;
             }
             last_asic_frequency = asic_frequency;
         }
