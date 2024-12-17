@@ -13,6 +13,7 @@
 #include "serial.h"
 #include "stratum_api.h"
 #include "work_queue.h"
+#include "asic_types.h"
 
 #define STRATUM_USER CONFIG_STRATUM_USER
 #define FALLBACK_STRATUM_USER CONFIG_FALLBACK_STRATUM_USER
@@ -28,15 +29,6 @@ typedef enum
     DEVICE_SUPRA,
     DEVICE_GAMMA,
 } DeviceModel;
-
-typedef enum
-{
-    ASIC_UNKNOWN = -1,
-    ASIC_BM1397,
-    ASIC_BM1366,
-    ASIC_BM1368,
-    ASIC_BM1370,
-} AsicModel;
 
 typedef struct
 {

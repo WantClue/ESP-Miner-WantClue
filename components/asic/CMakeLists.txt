@@ -1,5 +1,6 @@
 idf_component_register(
 SRCS 
+    "asic_api.c"
     "bm1370.c"
     "bm1368.c"
     "bm1366.c"
@@ -23,3 +24,5 @@ target_include_directories(${COMPONENT_LIB} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}
 
 # Include the header files from "main/tasks" directory
 target_include_directories(${COMPONENT_LIB} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../main/tasks")
+
+target_link_libraries(${COMPONENT_LIB} PUBLIC m)  # Add this line for math functions

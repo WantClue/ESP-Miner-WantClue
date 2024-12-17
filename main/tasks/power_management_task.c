@@ -1,6 +1,6 @@
+#include "power_management_task.h"
 #include "EMC2101.h"
 #include "INA260.h"
-#include "bm1397.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -28,22 +28,27 @@
 #define SUPRA_POWER_OFFSET 5
 #define GAMMA_POWER_OFFSET 5
 
-static const char * TAG = "power_management";
+static const char* TAG = "power_management";
 
-// static float _fbound(float value, float lower_bound, float upper_bound)
-// {
-//     if (value < lower_bound)
-//         return lower_bound;
-//     if (value > upper_bound)
-//         return upper_bound;
+bool power_management_init(PowerManagementModule* module, asic_type_t chip_type) {
+    if (!module) {
+        return false;
+    }
 
-//     return value;
-// }
+    // Initialize ASIC API
+    if (!asic_api_init(chip_type)) {
+        ESP_LOGE(TAG, "Failed to initialize ASIC API");
+        return false;
+    }
 
-// Set the fan speed between 20% min and 100% max based on chip temperature as input.
-// The fan speed increases from 20% to 100% proportionally to the temperature increase from 50 and THROTTLE_TEMP
-static double automatic_fan_speed(float chip_temp, GlobalState * GLOBAL_STATE)
-{
+    module->asic_type = chip_type;
+    module->frequency_multiplier = 1;
+    module->frequency_value = 56.25; // Starting frequency
+
+    return true;
+}
+
+static double automatic_fan_speed(float chip_temp, GlobalState* GLOBAL_STATE) {
     double result = 0.0;
     double min_temp = 45.0;
     double min_fan_speed = 35.0;
@@ -63,37 +68,88 @@ static double automatic_fan_speed(float chip_temp, GlobalState * GLOBAL_STATE)
         case DEVICE_ULTRA:
         case DEVICE_SUPRA:
         case DEVICE_GAMMA:
-            float perc = (float) result / 100;
+            float perc = (float)result / 100;
             GLOBAL_STATE->POWER_MANAGEMENT_MODULE.fan_perc = perc;
-            EMC2101_set_fan_speed( perc );
+            EMC2101_set_fan_speed(perc);
             break;
         default:
+            break;
     }
-	return result;
+    return result;
 }
 
-void POWER_MANAGEMENT_task(void * pvParameters)
-{
+static void handle_frequency_voltage_adjustment(PowerManagementModule* power_management, uint16_t core_voltage, 
+                                             uint16_t asic_frequency,
+                                             uint16_t* last_core_voltage, 
+                                             uint16_t* last_asic_frequency,
+                                             GlobalState* GLOBAL_STATE) {
+    if (core_voltage != *last_core_voltage) {
+        ESP_LOGI(TAG, "setting new vcore voltage to %umV", core_voltage);
+        VCORE_set_voltage((double)core_voltage / 1000.0, GLOBAL_STATE);
+        *last_core_voltage = core_voltage;
+    }
+
+    if (asic_frequency != *last_asic_frequency) {
+        ESP_LOGI(TAG, "New ASIC frequency requested: %uMHz (current: %uMHz)", 
+                 asic_frequency, *last_asic_frequency);
+        
+        if (asic_set_frequency((float)asic_frequency)) {
+            power_management->frequency_value = (float)asic_frequency;
+            *last_asic_frequency = asic_frequency;
+            ESP_LOGI(TAG, "Successfully transitioned to new ASIC frequency: %uMHz", asic_frequency);
+        } else {
+            ESP_LOGE(TAG, "Failed to transition to new ASIC frequency: %uMHz", asic_frequency);
+            // Potentially retry or revert to last known good frequency
+            if (asic_set_frequency((float)*last_asic_frequency)) {
+                ESP_LOGI(TAG, "Reverted to previous frequency: %uMHz", *last_asic_frequency);
+            }
+        }
+    }
+}
+
+void POWER_MANAGEMENT_task(void* pvParameters) {
     ESP_LOGI(TAG, "Starting");
 
-    GlobalState * GLOBAL_STATE = (GlobalState *) pvParameters;
+    GlobalState* GLOBAL_STATE = (GlobalState*)pvParameters;
+    PowerManagementModule* power_management = &GLOBAL_STATE->POWER_MANAGEMENT_MODULE;
 
-    PowerManagementModule * power_management = &GLOBAL_STATE->POWER_MANAGEMENT_MODULE;
+    // Initialize power management based on device model
+    asic_type_t chip_type;
+    switch (GLOBAL_STATE->device_model) {
+        case DEVICE_MAX:
+            chip_type = ASIC_BM1366;
+            break;
+        case DEVICE_ULTRA:
+        case DEVICE_SUPRA:
+            chip_type = ASIC_BM1368;
+            break;
+        case DEVICE_GAMMA:
+            chip_type = ASIC_BM1370;
+            break;
+        default:
+            ESP_LOGE(TAG, "Unsupported device model");
+            return;
+    }
 
-    power_management->frequency_multiplier = 1;
+    if (!power_management_init(power_management, chip_type)) {
+        ESP_LOGE(TAG, "Failed to initialize power management");
+        return;
+    }
 
-    power_management->HAS_POWER_EN = GLOBAL_STATE->board_version == 202 || GLOBAL_STATE->board_version == 203 || GLOBAL_STATE->board_version == 204;
+    power_management->HAS_POWER_EN = GLOBAL_STATE->board_version == 202 || 
+                                    GLOBAL_STATE->board_version == 203 || 
+                                    GLOBAL_STATE->board_version == 204;
     power_management->HAS_PLUG_SENSE = GLOBAL_STATE->board_version == 204;
 
-    //int last_frequency_increase = 0;
-    //uint16_t frequency_target = nvs_config_get_u16(NVS_CONFIG_ASIC_FREQ, CONFIG_ASIC_FREQUENCY);
+    uint16_t last_core_voltage = 0;
+    uint16_t last_asic_frequency = power_management->frequency_value;
 
+    // Initialize GPIO for device-specific configurations
     switch (GLOBAL_STATE->device_model) {
         case DEVICE_MAX:
         case DEVICE_ULTRA:
         case DEVICE_SUPRA:
-			if (GLOBAL_STATE->board_version < 402 || GLOBAL_STATE->board_version > 499) {
-                // Configure GPIO12 as input(barrel jack) 1 is plugged in
+            if (GLOBAL_STATE->board_version < 402 || GLOBAL_STATE->board_version > 499) {
                 gpio_config_t barrel_jack_conf = {
                     .pin_bit_mask = (1ULL << GPIO_NUM_12),
                     .mode = GPIO_MODE_INPUT,
@@ -102,55 +158,41 @@ void POWER_MANAGEMENT_task(void * pvParameters)
                 int barrel_jack_plugged_in = gpio_get_level(GPIO_NUM_12);
 
                 gpio_set_direction(GPIO_NUM_10, GPIO_MODE_OUTPUT);
-                if (barrel_jack_plugged_in == 1 || !power_management->HAS_PLUG_SENSE) {
-                    // turn ASIC on
-                    gpio_set_level(GPIO_NUM_10, 0);
-                } else {
-                    // turn ASIC off
-                    gpio_set_level(GPIO_NUM_10, 1);
-                }
-			}
+                gpio_set_level(GPIO_NUM_10, !barrel_jack_plugged_in || power_management->HAS_PLUG_SENSE);
+            }
             break;
         case DEVICE_GAMMA:
             break;
         default:
+            break;
     }
 
     vTaskDelay(500 / portTICK_PERIOD_MS);
-    uint16_t last_core_voltage = 0.0;
-    uint16_t last_asic_frequency = power_management->frequency_value;
-    
-    while (1) {
 
+    // Main task loop
+    while (1) {
+        // Update power measurements based on device model
         switch (GLOBAL_STATE->device_model) {
             case DEVICE_MAX:
             case DEVICE_ULTRA:
             case DEVICE_SUPRA:
-				if (GLOBAL_STATE->board_version >= 402 && GLOBAL_STATE->board_version <= 499) {
+                if (GLOBAL_STATE->board_version >= 402 && GLOBAL_STATE->board_version <= 499) {
                     power_management->voltage = TPS546_get_vin() * 1000;
                     power_management->current = TPS546_get_iout() * 1000;
-                    // calculate regulator power (in milliwatts)
-                    power_management->power = (TPS546_get_vout() * power_management->current) / 1000;
-                    // The power reading from the TPS546 is only it's output power. So the rest of the Bitaxe power is not accounted for.
-                    power_management->power += SUPRA_POWER_OFFSET; // Add offset for the rest of the Bitaxe power. TODO: this better.
-				} else {
-                    if (INA260_installed() == true) {
-                        power_management->voltage = INA260_read_voltage();
-                        power_management->current = INA260_read_current();
-                        power_management->power = INA260_read_power() / 1000;
-                    }
-				}
-            
+                    power_management->power = (TPS546_get_vout() * power_management->current) / 1000 + SUPRA_POWER_OFFSET;
+                } else if (INA260_installed()) {
+                    power_management->voltage = INA260_read_voltage();
+                    power_management->current = INA260_read_current();
+                    power_management->power = INA260_read_power() / 1000;
+                }
                 break;
             case DEVICE_GAMMA:
-                    power_management->voltage = TPS546_get_vin() * 1000;
-                    power_management->current = TPS546_get_iout() * 1000;
-                    // calculate regulator power (in milliwatts)
-                    power_management->power = (TPS546_get_vout() * power_management->current) / 1000;
-                    // The power reading from the TPS546 is only it's output power. So the rest of the Bitaxe power is not accounted for.
-                    power_management->power += GAMMA_POWER_OFFSET; // Add offset for the rest of the Bitaxe power. TODO: this better.
+                power_management->voltage = TPS546_get_vin() * 1000;
+                power_management->current = TPS546_get_iout() * 1000;
+                power_management->power = (TPS546_get_vout() * power_management->current) / 1000 + GAMMA_POWER_OFFSET;
                 break;
             default:
+                break;
         }
 
         power_management->fan_rpm = EMC2101_get_fan_speed();
@@ -275,26 +317,12 @@ void POWER_MANAGEMENT_task(void * pvParameters)
         // New voltage and frequency adjustment code
         uint16_t core_voltage = nvs_config_get_u16(NVS_CONFIG_ASIC_VOLTAGE, CONFIG_ASIC_VOLTAGE);
         uint16_t asic_frequency = nvs_config_get_u16(NVS_CONFIG_ASIC_FREQ, CONFIG_ASIC_FREQUENCY);
-
-        if (core_voltage != last_core_voltage) {
-            ESP_LOGI(TAG, "setting new vcore voltage to %umV", core_voltage);
-            VCORE_set_voltage((double) core_voltage / 1000.0, GLOBAL_STATE);
-            last_core_voltage = core_voltage;
-        }
-
-        if (asic_frequency != last_asic_frequency) {
-            ESP_LOGI(TAG, "New ASIC frequency requested: %uMHz (current: %uMHz)", asic_frequency, last_asic_frequency);
-            if (do_frequency_transition((float)asic_frequency)) {
-                power_management->frequency_value = (float)asic_frequency;
-                ESP_LOGI(TAG, "Successfully transitioned to new ASIC frequency: %uMHz", asic_frequency);
-            } else {
-                ESP_LOGE(TAG, "Failed to transition to new ASIC frequency: %uMHz", asic_frequency);
-            }
-            last_asic_frequency = asic_frequency;
-        }
+        
+        handle_frequency_voltage_adjustment(power_management, core_voltage, asic_frequency,
+                                         &last_core_voltage, &last_asic_frequency, GLOBAL_STATE);
 
         // Check for changing of overheat mode
-        SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
+        SystemModule* module = &GLOBAL_STATE->SYSTEM_MODULE;
         uint16_t new_overheat_mode = nvs_config_get_u16(NVS_CONFIG_OVERHEAT_MODE, 0);
         
         if (new_overheat_mode != module->overheat_mode) {
