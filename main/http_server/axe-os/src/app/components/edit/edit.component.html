@@ -12,13 +12,15 @@
     <p-dialog header="Warning: Danger Zone" [(visible)]="showDangerZoneDialog" [modal]="true" [style]="{width: '450px'}" [closable]="false">
         <div class="flex flex-column gap-3">
             <p class="m-0 text-lg">
-                Warning: Enabling Danger Zone allows you to overclock your device which will:
+                Warning: Enabling Danger Zone allows you to overclock your device which:
             </p>
             <ul class="m-0 pl-4">
-                <li>Void your warranty</li>
-                <li>Cause permanent hardware damage</li>
-                <li>Lead to device instability</li>
-                <li>Reduce device lifespan</li>
+                <li>will Void your warranty</li>
+                <li>might cause permanent hardware damage</li>
+                <li>might lead to device instability</li>
+                <li>might reduce device lifespan</li>
+                <li>might cause other issues</li>
+                <li>summon dragons</li>
             </ul>
             <div class="field-checkbox mt-3">
                 <p-checkbox [(ngModel)]="termsAccepted" [binary]="true" inputId="terms"></p-checkbox>
