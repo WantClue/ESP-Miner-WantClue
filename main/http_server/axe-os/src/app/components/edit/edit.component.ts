@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, Input, OnInit, OnDestroy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { FormsModule } from '@angular/forms';
 import { ToastrService } from 'ngx-toastr';
 import { startWith, Subject, takeUntil } from 'rxjs';
 import { LoadingService } from 'src/app/services/loading.service';
@@ -21,7 +22,9 @@ export class EditComponent implements OnInit, OnDestroy {
 
   public savedChanges: boolean = false;
   public devToolsOpen: boolean = false;
-  public proMode: boolean = false;
+  public dangerZone: boolean = false;
+  public showDangerZoneDialog: boolean = false;
+  public termsAccepted: boolean = false;
   public eASICModel = eASICModel;
   public ASICModel!: eASICModel;
 
@@ -118,6 +121,17 @@ export class EditComponent implements OnInit, OnDestroy {
   ];
 
   private destroy$ = new Subject<void>();
+
+  public cancelDangerZone(): void {
+    this.showDangerZoneDialog = false;
+    this.termsAccepted = false;
+  }
+
+  public enableDangerZone(): void {
+    this.dangerZone = true;
+    this.showDangerZoneDialog = false;
+    this.termsAccepted = false;
+  }
 
   constructor(
     private fb: FormBuilder,

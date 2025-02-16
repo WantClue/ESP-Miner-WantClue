@@ -1,15 +1,37 @@
 <ng-container *ngIf="form != null">
     <div class="flex justify-content-end align-items-center mb-3">
-        <i class="pi pi-info-circle mr-2" style="font-size: 1rem;" 
+        <i class="pi pi-info-circle mr-2" style="font-size: 1rem;"
            pTooltip="Enables advanced settings for custom frequency and voltage values. Overclocking might destroy your device!"></i>
-        <button pButton 
-                [label]="proMode ? 'Disable Pro Mode' : 'Enable Pro Mode'"
-                [class]="proMode ? 'p-button-danger' : 'p-button-primary'"
-                (click)="proMode = !proMode">
+        <button pButton
+                [label]="dangerZone ? 'Disable Danger Zone' : 'Enable Danger Zone'"
+                [class]="dangerZone ? 'p-button-danger' : 'p-button-primary'"
+                (click)="dangerZone ? (dangerZone = false) : showDangerZoneDialog = true">
         </button>
     </div>
+
+    <p-dialog header="Warning: Danger Zone" [(visible)]="showDangerZoneDialog" [modal]="true" [style]="{width: '450px'}" [closable]="false">
+        <div class="flex flex-column gap-3">
+            <p class="m-0 text-lg">
+                Warning: Enabling Danger Zone allows you to overclock your device which will:
+            </p>
+            <ul class="m-0 pl-4">
+                <li>Void your warranty</li>
+                <li>Cause permanent hardware damage</li>
+                <li>Lead to device instability</li>
+                <li>Reduce device lifespan</li>
+            </ul>
+            <div class="field-checkbox mt-3">
+                <p-checkbox [(ngModel)]="termsAccepted" [binary]="true" inputId="terms"></p-checkbox>
+                <label for="terms" class="ml-2">I understand and accept these risks</label>
+            </div>
+        </div>
+        <ng-template pTemplate="footer">
+            <button pButton label="Cancel" class="p-button-secondary" (click)="cancelDangerZone()"></button>
+            <button pButton label="Enable Danger Zone" [disabled]="!termsAccepted" (click)="enableDangerZone()" class="p-button-danger"></button>
+        </ng-template>
+    </p-dialog>
     <form [formGroup]="form">
-        <ng-container *ngIf="!devToolsOpen && !proMode && [eASICModel.BM1366, eASICModel.BM1368, eASICModel.BM1370, eASICModel.BM1397].includes(ASICModel)">
+        <ng-container *ngIf="!devToolsOpen && !dangerZone && [eASICModel.BM1366, eASICModel.BM1368, eASICModel.BM1370, eASICModel.BM1397].includes(ASICModel)">
             <div class="field grid p-fluid">
                 <label class="col-12 mb-2 md:col-2 md:mb-0" htmlFor="frequency">Frequency</label>
                 <div class="col-12 md:col-10">
@@ -25,7 +47,7 @@
             </div>
         </ng-container>
 
-        <ng-container *ngIf="devToolsOpen === true || proMode === true">
+        <ng-container *ngIf="devToolsOpen === true || dangerZone === true">
 
             <div class="field grid p-fluid">
                 <label htmlFor="frequency" class="col-12 mb-2 md:col-2 md:mb-0">Frequency</label>
