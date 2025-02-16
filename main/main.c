@@ -2,6 +2,8 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_psram.h"
+#include "esp_efuse.h"
+#include "esp_efuse_table.h"
 #include "nvs_flash.h"
 
 // #include "protocol_examples_common.h"
@@ -32,9 +34,18 @@ static GlobalState GLOBAL_STATE = {
 
 static const char * TAG = "bitaxe";
 
+static const esp_efuse_desc_t WARRANTY_BIT_DESC[] = {
+    {EFUSE_BLK3, 255, 1},  // Last bit in USER_DATA block
+    {-1, -1, -1}           // End of descriptor array
+};
+
 void app_main(void)
 {
+    uint8_t bit_value = 0;
+    const esp_efuse_desc_t* warranty_bit_desc[] = {&WARRANTY_BIT_DESC[0], NULL};
+    esp_efuse_read_field_blob(warranty_bit_desc, &bit_value, 1);
     ESP_LOGI(TAG, "Welcome to the bitaxe - FOSS || GTFO!");
+    ESP_LOGI(TAG, "Manufacture information ... || [Warranty Void Bit: %d]", bit_value);
 
     if (!esp_psram_is_initialized()) {
         ESP_LOGE(TAG, "No PSRAM available on ESP32 device!");

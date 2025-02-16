@@ -128,9 +128,25 @@ export class EditComponent implements OnInit, OnDestroy {
   }
 
   public enableDangerZone(): void {
-    this.dangerZone = true;
-    this.showDangerZoneDialog = false;
-    this.termsAccepted = false;
+    const form = this.form.getRawValue();
+    form.dangerZone = 1;  // Add danger zone flag
+
+    this.systemService.updateSystem(this.uri, form)
+      .pipe(this.loadingService.lockUIUntilComplete())
+      .subscribe({
+        next: () => {
+          this.dangerZone = true;
+          this.showDangerZoneDialog = false;
+          this.termsAccepted = false;
+          this.toastr.success('Danger Zone enabled', 'Success!');
+        },
+        error: (err: HttpErrorResponse) => {
+          this.dangerZone = false;
+          this.showDangerZoneDialog = false;
+          this.termsAccepted = false;
+          this.toastr.error(`Could not enable Danger Zone: ${err.message}`, 'Error');
+        }
+      });
   }
 
   constructor(

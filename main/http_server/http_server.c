@@ -4,6 +4,8 @@
 #include "esp_chip_info.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "esp_efuse.h"
+#include "esp_efuse_table.h"
 #include "esp_random.h"
 #include "esp_spiffs.h"
 #include "esp_timer.h"
@@ -38,6 +40,40 @@
 
 static const char * TAG = "http_server";
 static const char * CORS_TAG = "CORS";
+
+static const esp_efuse_desc_t WARRANTY_BIT_DESC[] = {
+    {EFUSE_BLK3, 255, 1},  // Last bit in USER_DATA block
+    {-1, -1, -1}           // End of descriptor array
+};
+
+static bool is_value_exceeding_limits(const char* asic_model, int voltage, int frequency) {
+    if (strcmp(asic_model, "BM1366") == 0) {
+        return voltage > 1300 || frequency > 575;
+    } else if (strcmp(asic_model, "BM1368") == 0) {
+        return voltage > 1300 || frequency > 575;
+    } else if (strcmp(asic_model, "BM1370") == 0) {
+        return voltage > 1250 || frequency > 625;
+    } else if (strcmp(asic_model, "BM1397") == 0) {
+        return voltage > 1500 || frequency > 650;
+    }
+    return false;
+}
+
+static esp_err_t mark_warranty_void(void) {
+    uint8_t bit_value = 0;
+    const esp_efuse_desc_t* warranty_bit_desc[] = {&WARRANTY_BIT_DESC[0], NULL};
+    esp_err_t err = esp_efuse_read_field_blob(warranty_bit_desc, &bit_value, 1);
+    if (err != ESP_OK) {
+        return err;
+    }
+    
+    if (!bit_value) {
+        uint8_t val = 1;
+        return esp_efuse_write_field_blob(warranty_bit_desc, &val, 1);
+    }
+    
+    return ESP_OK;
+}
 
 /* Handler for WiFi scan endpoint */
 static esp_err_t GET_wifi_scan(httpd_req_t *req)
@@ -470,6 +506,23 @@ static esp_err_t PATCH_update_settings(httpd_req_t * req)
     }
     if ((item = cJSON_GetObjectItem(root, "fanspeed")) != NULL) {
         nvs_config_set_u16(NVS_CONFIG_FAN_SPEED, item->valueint);
+    }
+
+    // Check if values exceed limits
+    bool should_void_warranty = false;
+    if ((item = cJSON_GetObjectItem(root, "dangerZone")) != NULL && item->valueint == 1) {
+        int voltage = nvs_config_get_u16(NVS_CONFIG_ASIC_VOLTAGE, CONFIG_ASIC_VOLTAGE);
+        int frequency = nvs_config_get_u16(NVS_CONFIG_ASIC_FREQ, CONFIG_ASIC_FREQUENCY);
+        
+        if (is_value_exceeding_limits(GLOBAL_STATE->asic_model_str, voltage, frequency)) {
+            esp_err_t err = mark_warranty_void();
+            if (err != ESP_OK) {
+                cJSON_Delete(root);
+                httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to mark warranty void");
+                return ESP_OK;
+            }
+            ESP_LOGI(TAG, "Warranty void bit burned - Values exceed safe limits: Voltage=%d, Frequency=%d", voltage, frequency);
+        }
     }
 
     cJSON_Delete(root);
