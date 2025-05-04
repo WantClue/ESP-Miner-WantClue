@@ -19,10 +19,16 @@
 
 #define SSD1306_I2C_ADDRESS    0x3C
 
+// Display resolutions
 #define LCD_H_RES              128
-#define LCD_V_RES              32
+#define LCD_V_RES_SSD1306      32
+#define LCD_V_RES_SSD1309      64
 #define LCD_CMD_BITS           8
 #define LCD_PARAM_BITS         8
+
+// Display types
+#define DISPLAY_TYPE_SSD1306   0
+#define DISPLAY_TYPE_SSD1309   1
 
 static const char * TAG = "display";
 
@@ -48,6 +54,14 @@ esp_err_t display_init(void * pvParameters)
 
     uint8_t flip_screen = nvs_config_get_u16(NVS_CONFIG_FLIP_SCREEN, 1);
     uint8_t invert_screen = nvs_config_get_u16(NVS_CONFIG_INVERT_SCREEN, 0);
+    uint8_t display_type = nvs_config_get_u16(NVS_CONFIG_DISPLAY_TYPE, DISPLAY_TYPE_SSD1306);
+    
+    // Set vertical resolution based on display type
+    uint8_t lcd_v_res = (display_type == DISPLAY_TYPE_SSD1309) ? LCD_V_RES_SSD1309 : LCD_V_RES_SSD1306;
+    
+    ESP_LOGI(TAG, "Initializing display type: %s (%dx%d)",
+             (display_type == DISPLAY_TYPE_SSD1309) ? "SSD1309" : "SSD1306",
+             LCD_H_RES, lcd_v_res);
 
     i2c_master_bus_handle_t i2c_master_bus_handle;
     ESP_RETURN_ON_ERROR(i2c_bitaxe_get_master_bus_handle(&i2c_master_bus_handle), TAG, "Failed to get i2c master bus handle");
@@ -72,7 +86,7 @@ esp_err_t display_init(void * pvParameters)
     };
 
     esp_lcd_panel_ssd1306_config_t ssd1306_config = {
-        .height = LCD_V_RES,
+        .height = lcd_v_res,
     };
     panel_config.vendor_config = &ssd1306_config;
 
@@ -94,10 +108,10 @@ esp_err_t display_init(void * pvParameters)
     const lvgl_port_display_cfg_t disp_cfg = {
         .io_handle = io_handle,
         .panel_handle = panel_handle,
-        .buffer_size = LCD_H_RES * LCD_V_RES,
+        .buffer_size = LCD_H_RES * lcd_v_res,
         .double_buffer = true,
         .hres = LCD_H_RES,
-        .vres = LCD_V_RES,
+        .vres = lcd_v_res,
         .monochrome = true,
         .color_format = LV_COLOR_FORMAT_RGB565,
         .rotation = {

@@ -123,6 +123,7 @@ export class EditComponent implements OnInit, OnDestroy {
         this.form = this.fb.group({
           flipscreen: [info.flipscreen == 1],
           invertscreen: [info.invertscreen == 1],
+          displayType: [info.displayType, [Validators.required]],
           displayTimeout: [info.displayTimeout, [
             Validators.required,
             Validators.pattern(/^[^:]*$/),
@@ -282,4 +283,10 @@ export class EditComponent implements OnInit, OnDestroy {
     return options;
   }
 
+  public getDisplayTypes() {
+    return [
+      { name: 'SSD1306 (128x32)', value: 0 },
+      { name: 'SSD1309 (128x64)', value: 1 }
+    ];
+  }
 }

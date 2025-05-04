@@ -59,6 +59,17 @@
             </div>
         </div>
 
+        <div class="field grid p-fluid">
+            <label htmlFor="displayType" class="col-12 mb-2 md:col-2 md:mb-0">Display Type</label>
+            <div class="col-12 md:col-10">
+                <p-dropdown [options]="getDisplayTypes()" optionLabel="name" optionValue="value"
+                    formControlName="displayType"></p-dropdown>
+                <div>
+                    <small>Select your display type. Requires restart to take effect.</small>
+                </div>
+            </div>
+        </div>
+
         <div class="col-12 md:col-4">
             <div class="field-checkbox">
                 <p-checkbox name="flipscreen" formControlName="flipscreen" inputId="flipscreen"
