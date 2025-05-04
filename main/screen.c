@@ -79,7 +79,6 @@ static lv_obj_t * create_scr_self_test() {
     self_test_finished_label = lv_label_create(scr);
     lv_obj_set_width(self_test_finished_label, LV_HOR_RES);
     lv_label_set_long_mode(self_test_finished_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
-
     return scr;
 }
 
@@ -247,7 +246,16 @@ static void screen_show(screen_t screen)
         lv_obj_t * scr = screens[screen];
 
         if (scr && lvgl_port_lock(0)) {
-            lv_screen_load_anim(scr, LV_SCR_LOAD_ANIM_MOVE_LEFT, LV_DEF_REFR_PERIOD * 128 / 8, 0, false);
+            // Get display type from NVS
+            uint8_t display_type = nvs_config_get_u16(NVS_CONFIG_DISPLAY_TYPE, 0);
+            
+            // Adjust animation duration based on display type
+            // For SSD1309 (type 1), use a shorter animation duration to prevent stuttering
+            uint32_t anim_duration = display_type == 1 ?
+                                    (LV_DEF_REFR_PERIOD * 128 / 16) : // Faster for SSD1309
+                                    (LV_DEF_REFR_PERIOD * 128 / 8);   // Normal for SSD1306
+            
+            lv_screen_load_anim(scr, LV_SCR_LOAD_ANIM_MOVE_LEFT, anim_duration, 0, false);
             lvgl_port_unlock();
         }
 

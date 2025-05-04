@@ -17,7 +17,7 @@
 #include "driver/i2c_types.h"
 #include "esp_lcd_panel_ssd1306.h"
 
-#define SSD1306_I2C_ADDRESS    0x3C
+#define SSD1306_I2C_ADDRESS    0x3C //same for the SSD1309
 
 // Display resolutions
 #define LCD_H_RES              128
