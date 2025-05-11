@@ -8,6 +8,11 @@
 #include "screen.h"
 #include "nvs_config.h"
 #include "display.h"
+#include "display_interface.h"
+
+// Forward declarations for display interfaces
+extern const display_interface_t *ssd1306_get_interface(void);
+extern const display_interface_t *ssd1309_get_interface(void);
 
 typedef enum {
     SCR_SELF_TEST,
@@ -46,6 +51,8 @@ static lv_obj_t *hashrate_label;
 static lv_obj_t *efficiency_label;
 static lv_obj_t *difficulty_label;
 static lv_obj_t *chip_temp_label;
+static lv_obj_t *shares_label;
+static lv_obj_t *rejected_label;
 
 static lv_obj_t *firmware_update_scr_filename_label;
 static lv_obj_t *firmware_update_scr_status_label;
@@ -63,176 +70,116 @@ static float current_power;
 static uint64_t current_difficulty;
 static float current_chip_temp;
 static bool found_block;
-
 static lv_obj_t * create_scr_self_test() {
-    lv_obj_t * scr = lv_obj_create(NULL);
-
-    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
-
-    lv_obj_t *label1 = lv_label_create(scr);
-    lv_label_set_text(label1, "BITAXE SELF TEST");
-
-    self_test_message_label = lv_label_create(scr);
-    self_test_result_label = lv_label_create(scr);
-
-    self_test_finished_label = lv_label_create(scr);
-    lv_obj_set_width(self_test_finished_label, LV_HOR_RES);
-    lv_label_set_long_mode(self_test_finished_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    // Use the current display interface to create the screen
+    const display_interface_t *display = get_current_display_interface();
+    lv_obj_t *scr = display->create_scr_self_test();
+    
+    // Store references to the labels we need to update
+    self_test_message_label = lv_obj_get_child(scr, 1);
+    self_test_result_label = lv_obj_get_child(scr, 2);
+    self_test_finished_label = lv_obj_get_child(scr, 3);
+    
     return scr;
 }
 
 static lv_obj_t * create_scr_overheat(SystemModule * module) {
-    lv_obj_t * scr = lv_obj_create(NULL);
-
-    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
-
-    lv_obj_t *label1 = lv_label_create(scr);
-    lv_label_set_text(label1, "DEVICE OVERHEAT!");
-
-    lv_obj_t *label2 = lv_label_create(scr);
-    lv_obj_set_width(label2, LV_HOR_RES);
-    lv_label_set_long_mode(label2, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_label_set_text(label2, "Power, frequency and fan configurations have been reset. Go to AxeOS to reconfigure device.");
-
-    lv_obj_t *label3 = lv_label_create(scr);
-    lv_label_set_text(label3, "IP Address:");
-
-    ip_addr_scr_overheat_label = lv_label_create(scr);
-
+    // Use the current display interface to create the screen
+    const display_interface_t *display = get_current_display_interface();
+    lv_obj_t *scr = display->create_scr_overheat(module);
+    
+    // Store reference to the IP address label
+    ip_addr_scr_overheat_label = lv_obj_get_child(scr, 3);
+    
     return scr;
 }
 
 static lv_obj_t * create_scr_asic_status(SystemModule * module) {
-    lv_obj_t * scr = lv_obj_create(NULL);
-
-    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
-
-    lv_obj_t *label1 = lv_label_create(scr);
-    lv_label_set_text(label1, "ASIC STATUS:");
-
-    asic_status_label = lv_label_create(scr);
-    lv_label_set_long_mode(asic_status_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
-
+    // Use the current display interface to create the screen
+    const display_interface_t *display = get_current_display_interface();
+    lv_obj_t *scr = display->create_scr_asic_status(module);
+    
+    // Store reference to the status label
+    asic_status_label = lv_obj_get_child(scr, 1);
+    
     return scr;
 }
 
 static lv_obj_t * create_scr_configure(SystemModule * module) {
-    lv_obj_t * scr = lv_obj_create(NULL);
-
-    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
-
-    lv_obj_t *label1 = lv_label_create(scr);
-    lv_obj_set_width(label1, LV_HOR_RES);
-    lv_obj_set_style_anim_duration(label1, 15000, LV_PART_MAIN);
-    lv_label_set_long_mode(label1, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_label_set_text(label1, "Welcome to your new Bitaxe! Connect to the configuration Wi-Fi and connect the Bitaxe to your network.");
-
-    // skip a line, it looks nicer this way
-    lv_label_create(scr);
-
-    lv_obj_t *label2 = lv_label_create(scr);
-    lv_label_set_text(label2, "Wi-Fi (for setup):");
-
-    lv_obj_t *label3 = lv_label_create(scr);
-    lv_label_set_text(label3, module->ap_ssid);
-
-    return scr;
+    // Use the current display interface to create the screen
+    const display_interface_t *display = get_current_display_interface();
+    return display->create_scr_configure(module);
 }
 
 static lv_obj_t * create_scr_ota(SystemModule * module) {
-    lv_obj_t * scr = lv_obj_create(NULL);
-
-    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
-
-    lv_obj_t *label1 = lv_label_create(scr);
-    lv_obj_set_width(label1, LV_HOR_RES);
-    lv_label_set_text(label1, "Firmware update");
-
-    firmware_update_scr_filename_label = lv_label_create(scr);
-
-    firmware_update_scr_status_label = lv_label_create(scr);
-
+    // Use the current display interface to create the screen
+    const display_interface_t *display = get_current_display_interface();
+    lv_obj_t *scr = display->create_scr_ota(module);
+    
+    // Store references to the labels that need to update
+    firmware_update_scr_filename_label = lv_obj_get_child(scr, 1);
+    firmware_update_scr_status_label = lv_obj_get_child(scr, 2);
+    
     return scr;
 }
 
 static lv_obj_t * create_scr_connection(SystemModule * module) {
-    lv_obj_t * scr = lv_obj_create(NULL);
-
-    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
-
-    lv_obj_t *label1 = lv_label_create(scr);
-    lv_obj_set_width(label1, LV_HOR_RES);
-    lv_label_set_long_mode(label1, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_label_set_text_fmt(label1, "Wi-Fi: %s", module->ssid);
-
-    wifi_status_label = lv_label_create(scr);
-    lv_obj_set_width(wifi_status_label, LV_HOR_RES);
-    lv_label_set_long_mode(wifi_status_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
-
-    lv_obj_t *label3 = lv_label_create(scr);
-    lv_label_set_text(label3, "Wi-Fi (for setup):");
-
-    lv_obj_t *label4 = lv_label_create(scr);
-    lv_label_set_text(label4, module->ap_ssid);
-
+    // Use the current display interface to create the screen
+    const display_interface_t *display = get_current_display_interface();
+    lv_obj_t *scr = display->create_scr_connection(module);
+    
+    // Store reference to the status label
+    wifi_status_label = lv_obj_get_child(scr, 1);
+    
     return scr;
 }
 
-static lv_obj_t * create_scr_logo(const lv_img_dsc_t *logo) {
-    lv_obj_t * scr = lv_obj_create(NULL);
-
-    lv_obj_t *img = lv_img_create(scr);
-    lv_img_set_src(img, logo);
-    lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
-
-    return scr;
+static lv_obj_t * create_scr_logo(const lv_img_dsc_t *img_dsc) {
+    // Use the current display interface to create the screen
+    const display_interface_t *display = get_current_display_interface();
+    return display->create_scr_logo(img_dsc);
 }
 
 static lv_obj_t * create_scr_urls(SystemModule * module) {
-    lv_obj_t * scr = lv_obj_create(NULL);
-
-    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
-
-    lv_obj_t *label1 = lv_label_create(scr);
-    lv_label_set_text(label1, "Stratum Host:");
-
-    mining_url_scr_urls_label = lv_label_create(scr);
-    lv_obj_set_width(mining_url_scr_urls_label, LV_HOR_RES);
-    lv_label_set_long_mode(mining_url_scr_urls_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
-
-    lv_obj_t *label3 = lv_label_create(scr);
-    lv_label_set_text(label3, "IP Address:");
-
-    ip_addr_scr_urls_label = lv_label_create(scr);
-
+    // Use the current display interface to create the screen
+    const display_interface_t *display = get_current_display_interface();
+    lv_obj_t *scr = display->create_scr_urls(module);
+    
+    // Store references to the labels that need to update
+    mining_url_scr_urls_label = lv_obj_get_child(scr, 1);
+    ip_addr_scr_urls_label = lv_obj_get_child(scr, 3);
+    
     return scr;
 }
 
 static lv_obj_t * create_scr_stats() {
-    lv_obj_t * scr = lv_obj_create(NULL);
-
-    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
-
-    hashrate_label = lv_label_create(scr);
-    lv_label_set_text(hashrate_label, "Gh/s: --");
-
-    efficiency_label = lv_label_create(scr);
-    lv_label_set_text(efficiency_label, "J/Th: --");
-
-    difficulty_label = lv_label_create(scr);
-    lv_label_set_text(difficulty_label, "Best: --");
-
-    chip_temp_label = lv_label_create(scr);
-    lv_label_set_text(chip_temp_label, "Temp: --");
-
+    // Use the current display interface to create the screen
+    const display_interface_t *display = get_current_display_interface();
+    lv_obj_t *scr = display->create_scr_stats();
+    
+    // Store references to the labels that need to update
+    if (display == ssd1306_get_interface()) {
+        // SSD1306 layout
+        hashrate_label = lv_obj_get_child(scr, 0);
+        efficiency_label = lv_obj_get_child(scr, 1);
+        difficulty_label = lv_obj_get_child(scr, 2);
+        chip_temp_label = lv_obj_get_child(scr, 3);
+    } else {
+        // SSD1309 layout (with containers)
+        lv_obj_t *stats_container = lv_obj_get_child(scr, 1);
+        lv_obj_t *row1 = lv_obj_get_child(stats_container, 0);
+        hashrate_label = lv_obj_get_child(row1, 0);
+        efficiency_label = lv_obj_get_child(row1, 1);
+        difficulty_label = lv_obj_get_child(stats_container, 1);
+        lv_obj_t *row3 = lv_obj_get_child(stats_container, 2);
+        chip_temp_label = lv_obj_get_child(row3, 0);
+        
+        // Get shares and rejected labels from row4
+        lv_obj_t *row4 = lv_obj_get_child(stats_container, 3);
+        shares_label = lv_obj_get_child(row4, 0);
+        rejected_label = lv_obj_get_child(row4, 1);
+    }
+    
     return scr;
 }
 
@@ -246,16 +193,11 @@ static void screen_show(screen_t screen)
         lv_obj_t * scr = screens[screen];
 
         if (scr && lvgl_port_lock(0)) {
-            // Get display type from NVS
-            uint8_t display_type = nvs_config_get_u16(NVS_CONFIG_DISPLAY_TYPE, 0);
+            // Get the current display interface
+            const display_interface_t *display = get_current_display_interface();
             
-            // Adjust animation duration based on display type
-            // For SSD1309 (type 1), use a shorter animation duration to prevent stuttering
-            uint32_t anim_duration = display_type == 1 ?
-                                    (LV_DEF_REFR_PERIOD * 128 / 16) : // Faster for SSD1309
-                                    (LV_DEF_REFR_PERIOD * 128 / 8);   // Normal for SSD1306
-            
-            lv_screen_load_anim(scr, LV_SCR_LOAD_ANIM_MOVE_LEFT, anim_duration, 0, false);
+            // Use the animation duration from the display interface
+            lv_screen_load_anim(scr, LV_SCR_LOAD_ANIM_MOVE_LEFT, display->anim_duration, 0, false);
             lvgl_port_unlock();
         }
 
@@ -391,6 +333,15 @@ static void screen_update_cb(lv_timer_t * timer)
 
     if (current_chip_temp != power_management->chip_temp_avg && power_management->chip_temp_avg > 0) {
         lv_label_set_text_fmt(chip_temp_label, "Temp: %.1f C", power_management->chip_temp_avg);
+    }
+    
+    // Update shares and rejected shares
+    if (shares_label != NULL) {
+        lv_label_set_text_fmt(shares_label, "Shares: %llu", module->shares_accepted);
+    }
+    
+    if (rejected_label != NULL) {
+        lv_label_set_text_fmt(rejected_label, "Rej: %llu", module->shares_rejected);
     }
 
     current_hashrate = module->current_hashrate;

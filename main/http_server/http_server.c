@@ -551,6 +551,9 @@ static esp_err_t GET_system_info(httpd_req_t * req)
 
     int8_t wifi_rssi = -90;
     get_wifi_current_rssi(&wifi_rssi);
+    
+    // Store the RSSI value in the global state for use by the display
+    GLOBAL_STATE->SYSTEM_MODULE.wifi_rssi = wifi_rssi;
 
     cJSON * root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "power", GLOBAL_STATE->POWER_MANAGEMENT_MODULE.power);

@@ -16,157 +16,57 @@
 #include "driver/i2c_master.h"
 #include "driver/i2c_types.h"
 #include "esp_lcd_panel_ssd1306.h"
-
-#define SSD1306_I2C_ADDRESS    0x3C //same for the SSD1309
-
-// Display resolutions
-#define LCD_H_RES              128
-#define LCD_V_RES_SSD1306      32
-#define LCD_V_RES_SSD1309      64
-#define LCD_CMD_BITS           8
-#define LCD_PARAM_BITS         8
-
-// Display types
-#define DISPLAY_TYPE_SSD1306   0
-#define DISPLAY_TYPE_SSD1309   1
+#include "display_interface.h"
 
 static const char * TAG = "display";
 
 static esp_lcd_panel_handle_t panel_handle = NULL;
 static bool display_state_on = false;
+static const display_interface_t *current_display_interface = NULL;
 
-static lv_theme_t theme;
-static lv_style_t scr_style;
+// Forward declarations for display interfaces
+extern const display_interface_t *ssd1306_get_interface(void);
+extern const display_interface_t *ssd1309_get_interface(void);
 
-extern const lv_font_t lv_font_portfolio_6x8;
-
-esp_err_t display_on(bool display_on);
-
-static void theme_apply(lv_theme_t *theme, lv_obj_t *obj) {
-    if (lv_obj_get_parent(obj) == NULL) {
-        lv_obj_add_style(obj, &scr_style, LV_PART_MAIN);
+// Get the appropriate display interface based on display type
+const display_interface_t *display_get_interface(uint8_t display_type) {
+    switch (display_type) {
+        case DISPLAY_TYPE_SSD1309:
+            return ssd1309_get_interface();
+        case DISPLAY_TYPE_SSD1306:
+        default:
+            return ssd1306_get_interface();
     }
+}
+
+esp_err_t display_on(bool display_on)
+{
+    if (current_display_interface != NULL) {
+        return current_display_interface->display_on(display_on);
+    }
+    return ESP_OK;
 }
 
 esp_err_t display_init(void * pvParameters)
 {
     GlobalState * GLOBAL_STATE = (GlobalState *) pvParameters;
 
-    uint8_t flip_screen = nvs_config_get_u16(NVS_CONFIG_FLIP_SCREEN, 1);
-    uint8_t invert_screen = nvs_config_get_u16(NVS_CONFIG_INVERT_SCREEN, 0);
+    // Get display type from NVS
     uint8_t display_type = nvs_config_get_u16(NVS_CONFIG_DISPLAY_TYPE, DISPLAY_TYPE_SSD1306);
     
-    // Set vertical resolution based on display type
-    uint8_t lcd_v_res = (display_type == DISPLAY_TYPE_SSD1309) ? LCD_V_RES_SSD1309 : LCD_V_RES_SSD1306;
+    // Get the appropriate display interface
+    current_display_interface = display_get_interface(display_type);
     
-    ESP_LOGI(TAG, "Initializing display type: %s (%dx%d)",
-             (display_type == DISPLAY_TYPE_SSD1309) ? "SSD1309" : "SSD1306",
-             LCD_H_RES, lcd_v_res);
-
-    i2c_master_bus_handle_t i2c_master_bus_handle;
-    ESP_RETURN_ON_ERROR(i2c_bitaxe_get_master_bus_handle(&i2c_master_bus_handle), TAG, "Failed to get i2c master bus handle");
-
-    ESP_LOGI(TAG, "Install panel IO");
-    esp_lcd_panel_io_handle_t io_handle = NULL;
-    esp_lcd_panel_io_i2c_config_t io_config = {
-        .scl_speed_hz = I2C_BUS_SPEED_HZ,
-        .dev_addr = SSD1306_I2C_ADDRESS,
-        .control_phase_bytes = 1,
-        .lcd_cmd_bits = LCD_CMD_BITS,
-        .lcd_param_bits = LCD_PARAM_BITS,
-        .dc_bit_offset = 6                     
-    };
+    ESP_LOGI(TAG, "Initializing display type: %s (%dx%d)", 
+             (display_type == DISPLAY_TYPE_SSD1309) ? "SSD1309" : "SSD1306", 
+             current_display_interface->width, current_display_interface->height);
     
-    ESP_RETURN_ON_ERROR(esp_lcd_new_panel_io_i2c(i2c_master_bus_handle, &io_config, &io_handle), TAG, "Failed to initialise i2c panel bus");
-
-    ESP_LOGI(TAG, "Install SSD1306 panel driver");
-    esp_lcd_panel_dev_config_t panel_config = {
-        .bits_per_pixel = 1,
-        .reset_gpio_num = -1,
-    };
-
-    esp_lcd_panel_ssd1306_config_t ssd1306_config = {
-        .height = lcd_v_res,
-    };
-    panel_config.vendor_config = &ssd1306_config;
-
-    ESP_RETURN_ON_ERROR(esp_lcd_new_panel_ssd1306(io_handle, &panel_config, &panel_handle), TAG, "No display found");
-    ESP_RETURN_ON_ERROR(esp_lcd_panel_reset(panel_handle), TAG, "Panel reset failed");
-    esp_err_t esp_lcd_panel_init_err = esp_lcd_panel_init(panel_handle);
-    if (esp_lcd_panel_init_err != ESP_OK) {
-        ESP_LOGE(TAG, "Panel init failed, no display connected?");
-    }  else {
-        ESP_RETURN_ON_ERROR(esp_lcd_panel_invert_color(panel_handle, invert_screen), TAG, "Panel invert failed");
-        // ESP_RETURN_ON_ERROR(esp_lcd_panel_mirror(panel_handle, false, false), TAG, "Panel mirror failed");
-    }
-    
-    ESP_LOGI(TAG, "Initialize LVGL");
-
-    const lvgl_port_cfg_t lvgl_cfg = ESP_LVGL_PORT_INIT_CONFIG();
-    ESP_RETURN_ON_ERROR(lvgl_port_init(&lvgl_cfg), TAG, "LVGL init failed");
-
-    const lvgl_port_display_cfg_t disp_cfg = {
-        .io_handle = io_handle,
-        .panel_handle = panel_handle,
-        .buffer_size = LCD_H_RES * lcd_v_res,
-        .double_buffer = true,
-        .hres = LCD_H_RES,
-        .vres = lcd_v_res,
-        .monochrome = true,
-        .color_format = LV_COLOR_FORMAT_RGB565,
-        .rotation = {
-            .swap_xy = false,
-            .mirror_x = !flip_screen, // The screen is not flipped, this is for backwards compatibility
-            .mirror_y = !flip_screen,
-        },
-        .flags = {
-            .swap_bytes = false,
-            .sw_rotate = false,
-        }
-    };
-
-    lv_disp_t * disp = lvgl_port_add_disp(&disp_cfg);
-
-    if (esp_lcd_panel_init_err == ESP_OK) {
-
-        if (lvgl_port_lock(0)) {
-            lv_style_init(&scr_style);
-            lv_style_set_text_font(&scr_style, &lv_font_portfolio_6x8);
-            lv_style_set_bg_opa(&scr_style, LV_OPA_COVER);
-
-            lv_theme_set_apply_cb(&theme, theme_apply);
-
-            lv_display_set_theme(disp, &theme);
-            lvgl_port_unlock();
-        }
-
-        // Only turn on the screen when it has been cleared
-        esp_err_t esp_err = display_on(true);
-        if (ESP_OK != esp_err) {
-            return esp_err;
-        }
-
-        GLOBAL_STATE->SYSTEM_MODULE.is_screen_active = true;
-    } else {
-        ESP_LOGW(TAG, "No display found.");
-    }
-
-    return ESP_OK;
+    // Initialize the display using the interface
+    lv_disp_t *disp = NULL;
+    return current_display_interface->init(pvParameters, &disp);
 }
 
-esp_err_t display_on(bool display_on)
-{
-    if (NULL != panel_handle) {
-        if (display_on && !display_state_on) {
-            ESP_RETURN_ON_ERROR(esp_lcd_panel_disp_on_off(panel_handle, true), TAG, "Panel display on failed");
-            display_state_on = true;
-        }
-        else if (!display_on && display_state_on)
-        {
-            ESP_RETURN_ON_ERROR(esp_lcd_panel_disp_on_off(panel_handle, false), TAG, "Panel display off failed");
-            display_state_on = false;
-        }
-    }
-
-    return ESP_OK;
+// Getter for the current display interface
+const display_interface_t *get_current_display_interface(void) {
+    return current_display_interface;
 }

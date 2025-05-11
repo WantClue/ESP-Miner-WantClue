@@ -75,6 +75,7 @@ typedef struct
     char ap_ssid[32];
     bool ap_enabled;
     bool is_connected;
+    int8_t wifi_rssi;
     char * pool_url;
     char * fallback_pool_url;
     uint16_t pool_port;
