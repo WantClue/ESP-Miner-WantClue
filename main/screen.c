@@ -25,19 +25,20 @@ typedef enum {
     SCR_OSMU_LOGO,
     SCR_URLS,
     SCR_STATS,
+    SCR_WIFI,
     MAX_SCREENS,
 } screen_t;
 
 #define SCREEN_UPDATE_MS 500
 
 #define SCR_CAROUSEL_START SCR_URLS
-#define SCR_CAROUSEL_END SCR_STATS
+#define SCR_CAROUSEL_END SCR_WIFI
 
 extern const lv_img_dsc_t bitaxe_logo;
 extern const lv_img_dsc_t osmu_logo;
 
 static lv_obj_t * screens[MAX_SCREENS];
-static int delays_ms[MAX_SCREENS] = {0, 0, 0, 0, 0, 1000, 3000, 3000, 10000, 10000};
+static int delays_ms[MAX_SCREENS] = {0, 0, 0, 0, 0, 1000, 3000, 3000, 10000, 10000, 10000};
 
 static screen_t current_screen = -1;
 static int current_screen_time_ms;
@@ -58,8 +59,10 @@ static lv_obj_t *firmware_update_scr_filename_label;
 static lv_obj_t *firmware_update_scr_status_label;
 static lv_obj_t *ip_addr_scr_overheat_label;
 static lv_obj_t *ip_addr_scr_urls_label;
+static lv_obj_t *ip_addr_scr_wifi_label;
 static lv_obj_t *mining_url_scr_urls_label;
 static lv_obj_t *wifi_status_label;
+static lv_obj_t *wifi_rssi_label;
 
 static lv_obj_t *self_test_message_label;
 static lv_obj_t *self_test_result_label;
@@ -147,7 +150,6 @@ static lv_obj_t * create_scr_urls(SystemModule * module) {
     
     // Store references to the labels that need to update
     mining_url_scr_urls_label = lv_obj_get_child(scr, 1);
-    ip_addr_scr_urls_label = lv_obj_get_child(scr, 3);
     
     return scr;
 }
@@ -180,6 +182,19 @@ static lv_obj_t * create_scr_stats() {
         rejected_label = lv_obj_get_child(row4, 1);
     }
     
+    return scr;
+}
+
+static lv_obj_t * create_scr_wifi(SystemModule * module) {
+    // Use the current display interface to create the screen
+    const display_interface_t *display = get_current_display_interface();
+    lv_obj_t *scr = display->create_scr_wifi(module);
+    
+    if (display == ssd1309_get_interface()) {
+        ip_addr_scr_wifi_label = lv_obj_get_child(scr, 2);
+        wifi_rssi_label = lv_obj_get_child(scr, 4);
+    }
+
     return scr;
 }
 
@@ -234,15 +249,25 @@ static void screen_update_cb(lv_timer_t * timer)
 
         SelfTestModule * self_test = &GLOBAL_STATE->SELF_TEST_MODULE;
 
-        lv_label_set_text(self_test_message_label, self_test->message);
+        if (self_test_message_label != NULL) {
+            lv_label_set_text(self_test_message_label, self_test->message);
+        }
 
         if (self_test->finished) {
             if (self_test->result) {
-                lv_label_set_text(self_test_result_label, "TESTS PASS!");
-                lv_label_set_text(self_test_finished_label, "Press RESET button to start Bitaxe.");
+                if (self_test_result_label != NULL) {
+                    lv_label_set_text(self_test_result_label, "TESTS PASS!");
+                }
+                if (self_test_finished_label != NULL) {
+                    lv_label_set_text(self_test_finished_label, "Press RESET button to start Bitaxe.");
+                }
             } else {
-                lv_label_set_text(self_test_result_label, "TESTS FAIL!");
-                lv_label_set_text(self_test_finished_label, "Hold BOOT button for 2 seconds to cancel self test, or press RESET to run again.");
+                if (self_test_result_label != NULL) {
+                    lv_label_set_text(self_test_result_label, "TESTS FAIL!");
+                }
+                if (self_test_finished_label != NULL) {
+                    lv_label_set_text(self_test_finished_label, "Hold BOOT button for 2 seconds to cancel self test, or press RESET to run again.");
+                }
             }
         }
 
@@ -250,10 +275,12 @@ static void screen_update_cb(lv_timer_t * timer)
     }
 
     if (GLOBAL_STATE->SYSTEM_MODULE.is_firmware_update) {
-        if (strcmp(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_filename, lv_label_get_text(firmware_update_scr_filename_label)) != 0) {
+        if (firmware_update_scr_filename_label != NULL &&
+            strcmp(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_filename, lv_label_get_text(firmware_update_scr_filename_label)) != 0) {
             lv_label_set_text(firmware_update_scr_filename_label, GLOBAL_STATE->SYSTEM_MODULE.firmware_update_filename);
         }
-        if (strcmp(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_status, lv_label_get_text(firmware_update_scr_status_label)) != 0) {
+        if (firmware_update_scr_status_label != NULL &&
+            strcmp(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_status, lv_label_get_text(firmware_update_scr_status_label)) != 0) {
             lv_label_set_text(firmware_update_scr_status_label, GLOBAL_STATE->SYSTEM_MODULE.firmware_update_status);
         }
         screen_show(SCR_FIRMWARE_UPDATE);
@@ -263,13 +290,15 @@ static void screen_update_cb(lv_timer_t * timer)
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
 
     if (module->asic_status) {
-        lv_label_set_text(asic_status_label, module->asic_status);
+        if (asic_status_label != NULL) {
+            lv_label_set_text(asic_status_label, module->asic_status);
+        }
         screen_show(SCR_ASIC_STATUS);
         return;
     }
 
     if (module->overheat_mode == 1) {
-        if (strcmp(module->ip_addr_str, lv_label_get_text(ip_addr_scr_overheat_label)) != 0) {
+        if (ip_addr_scr_overheat_label != NULL && strcmp(module->ip_addr_str, lv_label_get_text(ip_addr_scr_overheat_label)) != 0) {
             lv_label_set_text(ip_addr_scr_overheat_label, module->ip_addr_str);
         }
         screen_show(SCR_OVERHEAT);
@@ -282,7 +311,7 @@ static void screen_update_cb(lv_timer_t * timer)
     }
 
     if (module->ap_enabled) {
-        if (strcmp(module->wifi_status, lv_label_get_text(wifi_status_label)) != 0) {
+        if (wifi_status_label != NULL && strcmp(module->wifi_status, lv_label_get_text(wifi_status_label)) != 0) {
             lv_label_set_text(wifi_status_label, module->wifi_status);
         }
         screen_show(SCR_CONNECTION);
@@ -297,19 +326,24 @@ static void screen_update_cb(lv_timer_t * timer)
     PowerManagementModule * power_management = &GLOBAL_STATE->POWER_MANAGEMENT_MODULE;
 
     char *pool_url = module->is_using_fallback ? module->fallback_pool_url : module->pool_url;
-    if (strcmp(lv_label_get_text(mining_url_scr_urls_label), pool_url) != 0) {
+    if (mining_url_scr_urls_label != NULL && strcmp(lv_label_get_text(mining_url_scr_urls_label), pool_url) != 0) {
         lv_label_set_text(mining_url_scr_urls_label, pool_url);
     }
 
-    if (strcmp(lv_label_get_text(ip_addr_scr_urls_label), module->ip_addr_str) != 0) {
+    if (ip_addr_scr_urls_label != NULL && strcmp(lv_label_get_text(ip_addr_scr_urls_label), module->ip_addr_str) != 0) {
         lv_label_set_text(ip_addr_scr_urls_label, module->ip_addr_str);
     }
+    
+    // Update IP address on WIFI screen
+    if (ip_addr_scr_wifi_label != NULL && strcmp(lv_label_get_text(ip_addr_scr_wifi_label), module->ip_addr_str) != 0) {
+        lv_label_set_text(ip_addr_scr_wifi_label, module->ip_addr_str);
+    }
 
-    if (current_hashrate != module->current_hashrate) {
+    if (hashrate_label != NULL && current_hashrate != module->current_hashrate) {
         lv_label_set_text_fmt(hashrate_label, "Gh/s: %.2f", module->current_hashrate);
     }
 
-    if (current_power != power_management->power || current_hashrate != module->current_hashrate) {
+    if (efficiency_label != NULL && (current_power != power_management->power || current_hashrate != module->current_hashrate)) {
         if (power_management->power > 0 && module->current_hashrate > 0) {
             float efficiency = power_management->power / (module->current_hashrate / 1000.0);
             lv_label_set_text_fmt(efficiency_label, "J/Th: %.2f", efficiency);
@@ -319,19 +353,21 @@ static void screen_update_cb(lv_timer_t * timer)
     if (module->FOUND_BLOCK && !found_block) {
         found_block = true;
 
-        lv_obj_set_width(difficulty_label, LV_HOR_RES);
-        lv_label_set_long_mode(difficulty_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
-        lv_label_set_text_fmt(difficulty_label, "Best: %s   !!! BLOCK FOUND !!!", module->best_session_diff_string);
+        if (difficulty_label != NULL) {
+            lv_obj_set_width(difficulty_label, LV_HOR_RES);
+            lv_label_set_long_mode(difficulty_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
+            lv_label_set_text_fmt(difficulty_label, "Best: %s   !!! BLOCK FOUND !!!", module->best_session_diff_string);
+        }
 
         screen_show(SCR_STATS);
         lv_display_trigger_activity(NULL);
     } else {
-        if (current_difficulty != module->best_session_nonce_diff) {
+        if (difficulty_label != NULL && current_difficulty != module->best_session_nonce_diff) {
             lv_label_set_text_fmt(difficulty_label, "Best: %s/%s", module->best_session_diff_string, module->best_diff_string);
         }
     }
 
-    if (current_chip_temp != power_management->chip_temp_avg && power_management->chip_temp_avg > 0) {
+    if (chip_temp_label != NULL && current_chip_temp != power_management->chip_temp_avg && power_management->chip_temp_avg > 0) {
         lv_label_set_text_fmt(chip_temp_label, "Temp: %.1f C", power_management->chip_temp_avg);
     }
     
@@ -342,6 +378,11 @@ static void screen_update_cb(lv_timer_t * timer)
     
     if (rejected_label != NULL) {
         lv_label_set_text_fmt(rejected_label, "Rej: %llu", module->shares_rejected);
+    }
+    
+    // Update WIFI RSSI on WIFI screen
+    if (wifi_rssi_label != NULL) {
+        lv_label_set_text_fmt(wifi_rssi_label, "Signal: %d dBm", module->wifi_rssi);
     }
 
     current_hashrate = module->current_hashrate;
@@ -378,6 +419,7 @@ esp_err_t screen_start(void * pvParameters)
         screens[SCR_OSMU_LOGO] = create_scr_logo(&osmu_logo);
         screens[SCR_URLS] = create_scr_urls(module);
         screens[SCR_STATS] = create_scr_stats();
+        screens[SCR_WIFI] = create_scr_wifi(module);
 
         lv_timer_create(screen_update_cb, SCREEN_UPDATE_MS, NULL);
     }

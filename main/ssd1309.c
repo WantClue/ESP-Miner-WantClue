@@ -300,9 +300,6 @@ static lv_obj_t *ssd1309_create_scr_connection(SystemModule *module) {
     lv_obj_t *ssid_label = lv_label_create(scr);
     lv_label_set_text_fmt(ssid_label, "SSID: %s", module->ssid);
     
-    lv_obj_t *rssi_label = lv_label_create(scr);
-    lv_label_set_text_fmt(rssi_label, "Signal: %d dBm", module->wifi_rssi);
-    
     return scr;
 }
 
@@ -330,12 +327,6 @@ static lv_obj_t *ssd1309_create_scr_urls(SystemModule *module) {
     lv_obj_t *mining_url = lv_label_create(scr);
     lv_obj_set_width(mining_url, LCD_H_RES);
     lv_label_set_long_mode(mining_url, LV_LABEL_LONG_SCROLL_CIRCULAR);
-
-    // IP address
-    lv_obj_t *ip_label = lv_label_create(scr);
-    lv_label_set_text(ip_label, "IP Address:");
-
-    lv_obj_t *ip_addr = lv_label_create(scr);
     
     // Additional connection details
     lv_obj_t *user_label = lv_label_create(scr);
@@ -421,6 +412,35 @@ static lv_obj_t *ssd1309_create_scr_stats(void) {
     return scr;
 }
 
+// WIFI Screen
+static lv_obj_t *ssd1309_create_scr_wifi(SystemModule *module) {
+    lv_obj_t *scr = lv_obj_create(NULL);
+
+    // Title
+    lv_obj_t *title = lv_label_create(scr);
+    lv_label_set_text(title, "WIFI STATISTICS");
+    lv_obj_set_style_text_font(title, &lv_font_portfolio_6x8, 0);
+
+    // Set up the main screen with column layout
+    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+
+    // IP address
+    lv_obj_t *ip_label = lv_label_create(scr);
+    lv_label_set_text(ip_label, "IP Address:");
+    
+    lv_obj_t *ip_addr = lv_label_create(scr);
+
+    // Additional connection details
+    lv_obj_t *ssid_label = lv_label_create(scr);
+    lv_label_set_text_fmt(ssid_label, "SSID: %s", module->ssid);
+    
+    lv_obj_t *rssi_label = lv_label_create(scr);
+    lv_label_set_text_fmt(rssi_label, "Signal: %d dBm", module->wifi_rssi);
+
+    return scr;
+}
+
 // SSD1309-specific implementation of display_on
 static esp_err_t ssd1309_display_on(bool on)
 {
@@ -453,6 +473,7 @@ static const display_interface_t ssd1309_interface = {
     .create_scr_logo = ssd1309_create_scr_logo,
     .create_scr_urls = ssd1309_create_scr_urls,
     .create_scr_stats = ssd1309_create_scr_stats,
+    .create_scr_wifi = ssd1309_create_scr_wifi,
     .anim_duration = LV_DEF_REFR_PERIOD * 128 / 16, // Faster animation for SSD1309
     .display_on = ssd1309_display_on,
 };

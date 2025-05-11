@@ -34,6 +34,7 @@ typedef struct {
     lv_obj_t *(*create_scr_logo)(const lv_img_dsc_t *img_dsc);
     lv_obj_t *(*create_scr_urls)(SystemModule *module);
     lv_obj_t *(*create_scr_stats)(void);
+    lv_obj_t *(*create_scr_wifi)(SystemModule *module);
     
     // Animation settings
     uint32_t anim_duration;
