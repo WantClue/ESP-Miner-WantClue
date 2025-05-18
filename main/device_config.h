@@ -17,6 +17,7 @@ typedef enum
 {
     NONE,
     SSD1306,
+    SSD1309,
     SH1307,
 } Display;
 

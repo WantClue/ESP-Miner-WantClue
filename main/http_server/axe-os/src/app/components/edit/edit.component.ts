@@ -112,6 +112,7 @@ export class EditComponent implements OnInit, OnDestroy {
         this.form = this.fb.group({
           flipscreen: [info.flipscreen == 1],
           invertscreen: [info.invertscreen == 1],
+          displayType: [info.displayType, [Validators.required]],
           displayTimeout: [info.displayTimeout, [
             Validators.required,
             Validators.pattern(/^[^:]*$/),
@@ -271,4 +272,12 @@ export class EditComponent implements OnInit, OnDestroy {
     return options;
   }
 
+  getDisplayTypes() {
+    // Map display types from the C enum to dropdown options
+    return [
+      { name: 'SSD1306', value: 1 },
+      { name: 'SSD1309', value: 2 },
+      { name: 'SH1307', value: 3 }
+    ];
+  }
 }

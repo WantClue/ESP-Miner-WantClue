@@ -60,6 +60,7 @@ export class SystemService {
           boardVersion: "204",
           flipscreen: 1,
           invertscreen: 0,
+          displayType: 1,
           displayTimeout: 0,
           autofanspeed: 1,
           fanspeed: 100,
