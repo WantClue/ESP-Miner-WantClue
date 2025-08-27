@@ -80,6 +80,8 @@ static int8_t current_rssi_value;
 
 static bool found_block;
 static bool self_test_finished;
+static bool prev_found_block_state;
+static int block_found_timer;
 
 static lv_obj_t * create_flex_screen(int expected_lines) {
     lv_obj_t * scr = lv_obj_create(NULL);
@@ -403,8 +405,9 @@ static void screen_update_cb(lv_timer_t * timer)
     }
     current_hashrate = module->current_hashrate;
 
-    if (module->FOUND_BLOCK && !found_block) {
+    if (module->FOUND_BLOCK && !prev_found_block_state) {
         found_block = true;
+        block_found_timer = 1200;
 
         lv_obj_set_width(difficulty_label, LV_HOR_RES);
         lv_label_set_long_mode(difficulty_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
@@ -412,11 +415,22 @@ static void screen_update_cb(lv_timer_t * timer)
 
         screen_show(SCR_STATS);
         lv_display_trigger_activity(NULL);
-    } else {
-        if (current_difficulty != module->best_session_nonce_diff) {
-            lv_label_set_text_fmt(difficulty_label, "Best: %s/%s", module->best_session_diff_string, module->best_diff_string);
-            current_difficulty = module->best_session_nonce_diff;
+    }
+    
+    prev_found_block_state = module->FOUND_BLOCK;
+
+    if (found_block && block_found_timer > 0) {
+        block_found_timer--;
+        if (block_found_timer == 0) {
+            found_block = false;
+            lv_obj_set_width(difficulty_label, LV_SIZE_CONTENT);
+            lv_label_set_long_mode(difficulty_label, LV_LABEL_LONG_CLIP);
         }
+    }
+
+    if (!found_block && current_difficulty != module->best_session_nonce_diff) {
+        lv_label_set_text_fmt(difficulty_label, "Best: %s/%s", module->best_session_diff_string, module->best_diff_string);
+        current_difficulty = module->best_session_nonce_diff;
     }
 
     if (current_chip_temp != power_management->chip_temp_avg) {
