@@ -31,6 +31,19 @@ typedef struct {
 static i2c_dev_map_entry_t i2c_device_map[MAX_DEVICES];
 static int i2c_device_count = 0;
 
+static esp_err_t validate_bus_handle(void) {
+    if (i2c_bus_handle == NULL) {
+        ESP_LOGE(TAG, "I2C bus handle is NULL, attempting to reinitialize");
+        esp_err_t ret = i2c_bitaxe_init();
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to reinitialize I2C bus: %s", esp_err_to_name(ret));
+            return ret;
+        }
+        ESP_LOGI(TAG, "I2C bus reinitialized successfully");
+    }
+    return ESP_OK;
+}
+
 static esp_err_t log_on_error(esp_err_t err, i2c_master_dev_handle_t handle) {
     if (err == ESP_OK) {
         return ESP_OK;
@@ -108,8 +121,10 @@ esp_err_t i2c_bitaxe_get_master_bus_handle(i2c_master_bus_handle_t * dev_handle)
  */
 esp_err_t i2c_bitaxe_register_read(i2c_master_dev_handle_t dev_handle, uint8_t reg_addr, uint8_t * read_buf, size_t len)
 {
-    // return i2c_master_write_read_device(I2C_MASTER_NUM, device_address, &reg_addr, 1, data, len, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
-    //ESP_LOGI("I2C", "Reading %d bytes from register 0x%02X", len, reg_addr);
+    esp_err_t ret = validate_bus_handle();
+    if (ret != ESP_OK) {
+        return ret;
+    }
 
     return log_on_error(i2c_master_transmit_receive(dev_handle, &reg_addr, 1, read_buf, len, I2C_DEFAULT_TIMEOUT), dev_handle);
 }
@@ -123,6 +138,11 @@ esp_err_t i2c_bitaxe_register_read(i2c_master_dev_handle_t dev_handle, uint8_t r
  */
 esp_err_t i2c_bitaxe_register_write_addr(i2c_master_dev_handle_t dev_handle, uint8_t reg_addr)
 {
+    esp_err_t ret = validate_bus_handle();
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
     return log_on_error(i2c_master_transmit(dev_handle, &reg_addr, 1, I2C_DEFAULT_TIMEOUT), dev_handle);
 }
 
@@ -134,9 +154,12 @@ esp_err_t i2c_bitaxe_register_write_addr(i2c_master_dev_handle_t dev_handle, uin
  */
 esp_err_t i2c_bitaxe_register_write_byte(i2c_master_dev_handle_t dev_handle, uint8_t reg_addr, uint8_t data)
 {
-    uint8_t write_buf[2] = {reg_addr, data};
+    esp_err_t ret = validate_bus_handle();
+    if (ret != ESP_OK) {
+        return ret;
+    }
 
-    //return i2c_master_write_to_device(I2C_MASTER_NUM, device_address, write_buf, sizeof(write_buf), I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+    uint8_t write_buf[2] = {reg_addr, data};
 
     return log_on_error(i2c_master_transmit(dev_handle, write_buf, 2, I2C_DEFAULT_TIMEOUT), dev_handle);
 }
@@ -149,6 +172,11 @@ esp_err_t i2c_bitaxe_register_write_byte(i2c_master_dev_handle_t dev_handle, uin
  */
 esp_err_t i2c_bitaxe_register_write_bytes(i2c_master_dev_handle_t dev_handle, uint8_t * data, uint8_t len)
 {
+    esp_err_t ret = validate_bus_handle();
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
     return log_on_error(i2c_master_transmit(dev_handle, data, len, I2C_DEFAULT_TIMEOUT), dev_handle);
 }
 
@@ -160,9 +188,12 @@ esp_err_t i2c_bitaxe_register_write_bytes(i2c_master_dev_handle_t dev_handle, ui
  */
 esp_err_t i2c_bitaxe_register_write_word(i2c_master_dev_handle_t dev_handle, uint8_t reg_addr, uint16_t data)
 {
-    uint8_t write_buf[3] = {reg_addr, (uint8_t)(data & 0x00FF), (uint8_t)((data & 0xFF00) >> 8)};
+    esp_err_t ret = validate_bus_handle();
+    if (ret != ESP_OK) {
+        return ret;
+    }
 
-    //return i2c_master_write_to_device(I2C_MASTER_NUM, device_address, write_buf, sizeof(write_buf), I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+    uint8_t write_buf[3] = {reg_addr, (uint8_t)(data & 0x00FF), (uint8_t)((data & 0xFF00) >> 8)};
 
     return log_on_error(i2c_master_transmit(dev_handle, write_buf, 3, I2C_DEFAULT_TIMEOUT), dev_handle);
 }
