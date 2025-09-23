@@ -698,6 +698,12 @@ static esp_err_t GET_system_info(httpd_req_t * req)
     cJSON_AddNumberToObject(root, "nominalVoltage", GLOBAL_STATE->DEVICE_CONFIG.family.nominal_voltage);
     cJSON_AddNumberToObject(root, "hashRate", GLOBAL_STATE->SYSTEM_MODULE.current_hashrate);
     cJSON_AddNumberToObject(root, "expectedHashrate", expected_hashrate);
+
+    cJSON *chipHashrates = cJSON_CreateArray();
+    for (int i = 0; i < 16; i++) {
+        cJSON_AddItemToArray(chipHashrates, cJSON_CreateNumber(GLOBAL_STATE->SYSTEM_MODULE.chip_hashrates[i]));
+    }
+    cJSON_AddItemToObject(root, "chipHashrates", chipHashrates);
     cJSON_AddStringToObject(root, "bestDiff", GLOBAL_STATE->SYSTEM_MODULE.best_diff_string);
     cJSON_AddStringToObject(root, "bestSessionDiff", GLOBAL_STATE->SYSTEM_MODULE.best_session_diff_string);
     cJSON_AddNumberToObject(root, "poolDifficulty", GLOBAL_STATE->pool_difficulty);

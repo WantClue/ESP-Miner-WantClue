@@ -27,6 +27,7 @@ SRCS
     "./tasks/create_jobs_task.c"
     "./tasks/asic_task.c"
     "./tasks/asic_result_task.c"
+    "./tasks/hashrate_monitor_task.c"
     "./tasks/power_management_task.c"
     "./tasks/statistics_task.c"
     "./thermal/EMC2101.c"

@@ -32,6 +32,7 @@ typedef struct
     double historical_hashrate[HISTORY_LENGTH];
     int historical_hashrate_init;
     double current_hashrate;
+    double chip_hashrates[16]
     int64_t start_time;
     uint64_t shares_accepted;
     uint64_t shares_rejected;

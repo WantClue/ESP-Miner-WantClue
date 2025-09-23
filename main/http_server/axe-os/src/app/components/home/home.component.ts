@@ -32,6 +32,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   public chartOptions: any;
   public dataLabel: number[] = [];
   public hashrateData: number[] = [];
+  public registerHashrateData: number[] = [];
   public powerData: number[] = [];
   public chartY1Data: number[] = [];
   public chartY2Data: number[] = [];
@@ -361,9 +362,12 @@ export class HomeComponent implements OnInit, OnDestroy {
         if (!info.power_fault) {
           this.dataLabel.push(new Date().getTime());
           this.hashrateData.push(info.hashRate);
+          // Calculate total register hashrate from chip hashrates (convert GH/s to raw hashes like info.hashRate)
+          const totalRegisterHashrate = info.chipHashrates ? info.chipHashrates.reduce((sum, hr) => sum + hr, 0) : 0;
+          this.registerHashrateData.push(totalRegisterHashrate * 1000000000);
           this.powerData.push(info.power);
-          this.chartY1Data.push(HomeComponent.getDataForLabel(chartY1DataLabel, info));
-          this.chartY2Data.push(HomeComponent.getDataForLabel(chartY2DataLabel, info));
+          this.chartY1Data.push(this.getDataForLabel(chartY1DataLabel, info));
+          this.chartY2Data.push(this.getDataForLabel(chartY2DataLabel, info));
 
           this.limitDataPoints();
 
@@ -471,6 +475,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   public clearDataPoints() {
     this.dataLabel.length = 0;
     this.hashrateData.length = 0;
+    this.registerHashrateData.length = 0;
     this.powerData.length = 0;
     this.chartY1Data.length = 0;
     this.chartY2Data.length = 0;
@@ -480,6 +485,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     if (this.dataLabel.length >= 720) {
       this.dataLabel.shift();
       this.hashrateData.shift();
+      this.registerHashrateData.shift();
       this.powerData.shift();
       this.chartY1Data.shift();
       this.chartY2Data.shift();
@@ -488,59 +494,63 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   public getSuggestedMaxForLabel(label: eChartLabel | undefined, info: ISystemInfo): number {
     switch (label) {
-      case eChartLabel.hashrate:    return info.expectedHashrate;
-      case eChartLabel.asicTemp:    return this.maxTemp;
-      case eChartLabel.vrTemp:      return this.maxTemp + 25;
-      case eChartLabel.asicVoltage: return info.coreVoltage;
-      case eChartLabel.voltage:     return (info.nominalVoltage + .5);
-      case eChartLabel.power:       return this.maxPower;
-      case eChartLabel.current:     return (this.maxPower / info.coreVoltage);
-      case eChartLabel.fanSpeed:    return 100;
-      case eChartLabel.fanRpm:      return 7000;
-      case eChartLabel.wifiRssi:    return 0;
-      case eChartLabel.freeHeap:    return 0;
+      case eChartLabel.hashrate:        return info.expectedHashrate;
+      case eChartLabel.registerHashrate: return info.expectedHashrate;
+      case eChartLabel.asicTemp:        return this.maxTemp;
+      case eChartLabel.vrTemp:          return this.maxTemp + 25;
+      case eChartLabel.asicVoltage:     return info.coreVoltage;
+      case eChartLabel.voltage:         return (info.nominalVoltage + .5);
+      case eChartLabel.power:           return this.maxPower;
+      case eChartLabel.current:         return (this.maxPower / info.coreVoltage);
+      case eChartLabel.fanSpeed:        return 100;
+      case eChartLabel.fanRpm:          return 7000;
+      case eChartLabel.wifiRssi:        return 0;
+      case eChartLabel.freeHeap:        return 0;
       default: return 0;
     }
   }
 
-  static getDataForLabel(label: eChartLabel | undefined, info: ISystemInfo): number {
+  getDataForLabel(label: eChartLabel | undefined, info: ISystemInfo): number {
     switch (label) {
-      case eChartLabel.hashrate:    return info.hashRate;
-      case eChartLabel.asicTemp:    return info.temp;
-      case eChartLabel.vrTemp:      return info.vrTemp;
-      case eChartLabel.asicVoltage: return info.coreVoltageActual;
-      case eChartLabel.voltage:     return info.voltage;
-      case eChartLabel.power:       return info.power;
-      case eChartLabel.current:     return info.current;
-      case eChartLabel.fanSpeed:    return info.fanspeed;
-      case eChartLabel.fanRpm:      return info.fanrpm;
-      case eChartLabel.wifiRssi:    return info.wifiRSSI;
-      case eChartLabel.freeHeap:    return info.freeHeap;
+      case eChartLabel.hashrate:        return info.hashRate;
+      case eChartLabel.registerHashrate: return this.registerHashrateData.length > 0 ? this.registerHashrateData[this.registerHashrateData.length - 1] : 0;
+      case eChartLabel.asicTemp:        return info.temp;
+      case eChartLabel.vrTemp:          return info.vrTemp;
+      case eChartLabel.asicVoltage:     return info.coreVoltageActual;
+      case eChartLabel.voltage:         return info.voltage;
+      case eChartLabel.power:           return info.power;
+      case eChartLabel.current:         return info.current;
+      case eChartLabel.fanSpeed:        return info.fanspeed;
+      case eChartLabel.fanRpm:          return info.fanrpm;
+      case eChartLabel.wifiRssi:        return info.wifiRSSI;
+      case eChartLabel.freeHeap:        return info.freeHeap;
       default: return 0.0;
     }
   }
 
   static getSettingsForLabel(label: eChartLabel): {suffix: string; precision: number} {
     switch (label) {
-      case eChartLabel.hashrate:    return {suffix: ' H/s', precision: 0};
-      case eChartLabel.asicTemp:    return {suffix: ' °C', precision: 1};
-      case eChartLabel.vrTemp:      return {suffix: ' °C', precision: 1};
-      case eChartLabel.asicVoltage: return {suffix: ' V', precision: 3};
-      case eChartLabel.voltage:     return {suffix: ' V', precision: 1};
-      case eChartLabel.power:       return {suffix: ' W', precision: 1};
-      case eChartLabel.current:     return {suffix: ' A', precision: 1};
-      case eChartLabel.fanSpeed:    return {suffix: ' %', precision: 0};
-      case eChartLabel.fanRpm:      return {suffix: ' rpm', precision: 0};
-      case eChartLabel.wifiRssi:    return {suffix: ' dBm', precision: 0};
-      case eChartLabel.freeHeap:    return {suffix: ' B', precision: 0};
+      case eChartLabel.hashrate:        return {suffix: ' H/s', precision: 0};
+      case eChartLabel.registerHashrate: return {suffix: ' H/s', precision: 0};
+      case eChartLabel.asicTemp:        return {suffix: ' °C', precision: 1};
+      case eChartLabel.vrTemp:          return {suffix: ' °C', precision: 1};
+      case eChartLabel.asicVoltage:     return {suffix: ' V', precision: 3};
+      case eChartLabel.voltage:         return {suffix: ' V', precision: 1};
+      case eChartLabel.power:           return {suffix: ' W', precision: 1};
+      case eChartLabel.current:         return {suffix: ' A', precision: 1};
+      case eChartLabel.fanSpeed:        return {suffix: ' %', precision: 0};
+      case eChartLabel.fanRpm:          return {suffix: ' rpm', precision: 0};
+      case eChartLabel.wifiRssi:        return {suffix: ' dBm', precision: 0};
+      case eChartLabel.freeHeap:        return {suffix: ' B', precision: 0};
       default: return {suffix: '', precision: 0};
     }
   }
 
   static cbFormatValue(value: number, datasetLabel: eChartLabel): string {
     switch (datasetLabel) {
-      case eChartLabel.hashrate:    return HashSuffixPipe.transform(value);
-      case eChartLabel.freeHeap:    return ByteSuffixPipe.transform(value);
+      case eChartLabel.hashrate:        return HashSuffixPipe.transform(value);
+      case eChartLabel.registerHashrate: return HashSuffixPipe.transform(value);
+      case eChartLabel.freeHeap:        return ByteSuffixPipe.transform(value);
       default:
         const settings = HomeComponent.getSettingsForLabel(datasetLabel);
         return value.toFixed(settings.precision) + settings.suffix;

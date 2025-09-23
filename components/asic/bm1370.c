@@ -322,6 +322,20 @@ task_result * BM1370_process_work(void * pvParameters)
         return NULL;
     }
 
+    // Check if this is a register response
+    if (!(asic_result.nonce & 0x7f) && !(asic_result.version)) {
+        // Register response
+        result.data = __builtin_bswap32(asic_result.nonce);
+        result.reg = asic_result.job_id;
+        result.asic_nr = asic_result.midstate_num >> 2; // chipIndexFromAddr
+        result.is_reg_resp = 1;
+        result.job_id = 0; // Not a job
+        result.nonce = 0;
+        result.rolled_version = 0;
+        return &result;
+    }
+
+    // Regular nonce response
     // uint8_t job_id = asic_result.job_id;
     // uint8_t rx_job_id = ((int8_t)job_id & 0xf0) >> 1;
     // ESP_LOGI(TAG, "Job ID: %02X, RX: %02X", job_id, rx_job_id);
@@ -347,6 +361,22 @@ task_result * BM1370_process_work(void * pvParameters)
     result.job_id = job_id;
     result.nonce = asic_result.nonce;
     result.rolled_version = rolled_version;
+    result.asic_nr = 0; // Not used for nonce
+    result.data = 0;
+    result.reg = 0;
+    result.is_reg_resp = 0;
 
     return &result;
+}
+
+void BM1370_reset_counter(uint8_t reg)
+{
+    unsigned char reset_cmd[6] = {0x00, reg, 0x00, 0x00, 0x00, 0x00};
+    _send_BM1370((TYPE_CMD | GROUP_ALL | CMD_WRITE), reset_cmd, 6, BM1370_SERIALTX_DEBUG);
+}
+
+void BM1370_read_counter(uint8_t reg)
+{
+    unsigned char read_cmd[2] = {0x00, reg};
+    _send_BM1370((TYPE_CMD | GROUP_ALL | CMD_READ), read_cmd, 2, BM1370_SERIALTX_DEBUG);
 }

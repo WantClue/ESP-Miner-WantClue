@@ -9,12 +9,18 @@
 #include "utils.h"
 #include "stratum_task.h"
 #include "asic.h"
+#include "hashrate_monitor_task.h"
 
 static const char *TAG = "asic_result";
+
+static hashrate_monitor_t hashrate_monitor;
 
 void ASIC_result_task(void *pvParameters)
 {
     GlobalState *GLOBAL_STATE = (GlobalState *)pvParameters;
+
+    // Start hashrate monitor
+    hashrate_monitor_start(&hashrate_monitor, GLOBAL_STATE, 1000, 10000, 300);
 
     while (1)
     {
@@ -23,6 +29,12 @@ void ASIC_result_task(void *pvParameters)
 
         if (asic_result == NULL)
         {
+            continue;
+        }
+
+        if (asic_result->is_reg_resp) {
+            // Handle register response
+            hashrate_monitor_on_register_reply(&hashrate_monitor, asic_result->asic_nr, asic_result->data);
             continue;
         }
 

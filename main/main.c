@@ -6,6 +6,7 @@
 #include "asic_result_task.h"
 #include "asic_task.h"
 #include "create_jobs_task.h"
+#include "hashrate_monitor_task.h"
 #include "statistics_task.h"
 #include "system.h"
 #include "http_server.h"
