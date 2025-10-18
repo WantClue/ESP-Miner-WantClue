@@ -288,7 +288,7 @@ static esp_err_t GET_wifi_scan(httpd_req_t *req)
 typedef struct rest_server_context
 {
     char base_path[ESP_VFS_PATH_MAX + 1];
-    char scratch[SCRATCH_BUFSIZE];
+    char *scratch;
 } rest_server_context_t;
 
 #define CHECK_FILE_EXTENSION(filename, ext) (strcasecmp(&filename[strlen(filename) - strlen(ext)], ext) == 0)
@@ -1395,6 +1395,8 @@ esp_err_t start_rest_server(void * pvParameters)
     REST_CHECK(base_path, "wrong base path", err);
     rest_server_context_t * rest_context = calloc(1, sizeof(rest_server_context_t));
     REST_CHECK(rest_context, "No memory for rest context", err);
+    rest_context->scratch = heap_caps_calloc(1, SCRATCH_BUFSIZE, MALLOC_CAP_SPIRAM);
+    REST_CHECK(rest_context->scratch, "No memory for scratch buffer", err);
     strlcpy(rest_context->base_path, base_path, sizeof(rest_context->base_path));
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -1549,6 +1551,9 @@ esp_err_t start_rest_server(void * pvParameters)
 
     return ESP_OK;
 err_start:
+    if (rest_context->scratch) {
+        free(rest_context->scratch);
+    }
     free(rest_context);
 err:
     return ESP_FAIL;
