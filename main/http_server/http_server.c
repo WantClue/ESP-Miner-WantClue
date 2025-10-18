@@ -46,6 +46,8 @@
 #include "system.h"
 #include "websocket.h"
 
+#include "esp_attr.h"
+
 #define JSON_ALL_STATS_ELEMENT_SIZE 120
 
 #define NVS_STR_LIMIT (4000 - 1)
@@ -54,6 +56,83 @@
 
 static const char * TAG = "http_server";
 static const char * CORS_TAG = "CORS";
+
+EXT_RAM_ATTR const char recovery_page_html[] =
+    "<html>\n"
+    "<style>\n"
+    "body {\n"
+    "    background-color: #000;\n"
+    "    color: #00ff00;\n"
+    "    font-family: courier new;\n"
+    "}\n"
+    "</style>\n"
+    "<head>\n"
+    "<title>AxeOS Recovery</title>\n"
+    "</head>\n"
+    "<body>\n"
+    "<pre>\n"
+    "                      ____   _____          \n"
+    "     /\\              / __ \\ / ____|         \n"
+    "    /  \\   __  _____| |  | | (___            \n"
+    "   / /\\ \\  \\ \\/ / _ \\ |  | |\\___ \\       \n"
+    "  / ____ \\  >  <  __/ |__| |____) |        \n"
+    " /_/___ \\_\\/_/\\_\\___|\\____/|_____/         \n"
+    " |  __ \\\n"
+    " | |__) |___  ___ _____   _____ _ __ _   _ \n"
+    " |  _  // _ \\/ __/ _ \\ \\ / / _ \\ '__| | | |\n"
+    " | | \\ \\  __/ (_| (_) \\ V /  __/ |  | |_| |\n"
+    " |_|  \\_\\___|\\___\\___/ \\_/ \\___|_|   \\__, |\n"
+    "                                      __/ |\n"
+    "                                     |___/\n"
+    "</pre>\n"
+    "<p>Please upload www.bin to recover AxeOS</p>\n"
+    "<p>After clicking upload, please wait 60 seconds<br>\n"
+    "DO NOT restart the device until response is received</p>\n"
+    "<input type=\"file\" id=\"wwwfile\" name=\"wwwfile\"><br>\n"
+    "<button id=\"upload\">Upload</button>\n"
+    "<small id=\"status\"></small>\n"
+    "<br><button id=\"restart\">Restart</button>\n"
+    "<br><br>Response:<br>\n"
+    "<small id=\"response\"></small>\n"
+    "<script>\n"
+    "document.getElementById('upload').addEventListener('click', handleUpload);\n"
+    "statusMsg = document.getElementById('status');\n"
+    "responseMsg = document.getElementById('response');\n"
+    "function handleUpload() {\n"
+    "  const fileInput = document.getElementById('wwwfile');\n"
+    "  const file = fileInput.files[0];\n"
+    "  const uploadUrl = '/api/system/OTAWWW';\n"
+    "  const upload_xhr = new XMLHttpRequest();\n"
+    "  upload_xhr.open('POST', uploadUrl, true);\n"
+    "  upload_xhr.setRequestHeader('Content-Type', 'application/octet-stream');\n"
+    "  upload_xhr.onload = function() {\n"
+    "      const responseBody = upload_xhr.responseText;\n"
+    "      if (upload_xhr.status === 200) {\n"
+    "          statusMsg.innerHTML = 'Upload successful!';\n"
+    "      } else {\n"
+    "          statusMsg.innerHTML='Error uploading!';\n"
+    "      }\n"
+    "      responseMsg.innerHTML = responseBody;\n"
+    "  };\n"
+    "  statusMsg.innerHTML = 'uploading...';\n"
+    "  upload_xhr.send(file);\n"
+    "}\n"
+    "document.getElementById('restart').addEventListener('click', handleRestart);\n"
+    "function handleRestart() {\n"
+    "  const restartUrl = '/api/system/restart';\n"
+    "  const restart_xhr = new XMLHttpRequest();\n"
+    "  restart_xhr.open('POST', restartUrl, true);\n"
+    "  restart_xhr.setRequestHeader('Content-Type', '');\n"
+    "  restart_xhr.onload = function() {\n"
+    "    const responseBody = restart_xhr.responseText;\n"
+    "    responseMsg.innerHTML = responseBody;\n"
+    "  };\n"
+    "  restart_xhr.send(null);\n"
+    "}\n"
+    "</script>\n"
+    "</body>\n"
+    "</html>\n"
+    ;
 
 static char axeOSVersion[32];
 
@@ -421,10 +500,7 @@ static esp_err_t rest_recovery_handler(httpd_req_t * req)
         return httpd_resp_send_err(req, HTTPD_401_UNAUTHORIZED, "Unauthorized");
     }
 
-    extern const unsigned char recovery_page_start[] asm("_binary_recovery_page_html_start");
-    extern const unsigned char recovery_page_end[] asm("_binary_recovery_page_html_end");
-    const size_t recovery_page_size = (recovery_page_end - recovery_page_start);
-    httpd_resp_send_chunk(req, (const char*)recovery_page_start, recovery_page_size);
+    httpd_resp_send_chunk(req, recovery_page_html, sizeof(recovery_page_html));
     httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;
 }
