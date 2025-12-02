@@ -28,6 +28,10 @@ static float hashrate_1h[HASHRATE_1H_SIZE];
 
 static const char *TAG = "hashrate_monitor";
 
+// Threshold in seconds before reporting a domain as lost
+// After this time with 0 hashrate, the domain is considered lost
+#define DOMAIN_LOST_THRESHOLD_MS 15000
+
 static float sum_hashrates(measurement_t * measurement, int asic_count)
 {
     if (asic_count == 1) return measurement[0].hashrate;
@@ -73,6 +77,54 @@ static void update_hash_counter(measurement_t * measurement, uint32_t value, uin
 
     measurement->value = value;
     measurement->time_ms = time_ms;
+}
+
+static void check_domain_health(GlobalState * GLOBAL_STATE)
+{
+    HashrateMonitorModule * HASHRATE_MONITOR_MODULE = &GLOBAL_STATE->HASHRATE_MONITOR_MODULE;
+    
+    int asic_count = GLOBAL_STATE->DEVICE_CONFIG.family.asic_count;
+    int hash_domains = GLOBAL_STATE->DEVICE_CONFIG.family.asic.hash_domains;
+    
+    // Skip check if only 1 domain or not initialized
+    if (hash_domains <= 1 || !HASHRATE_MONITOR_MODULE->is_initialized) {
+        return;
+    }
+    
+    uint32_t current_time_ms = esp_timer_get_time() / 1000;
+    
+    for (int asic_nr = 0; asic_nr < asic_count; asic_nr++) {
+        // First check total hashrate - if it's 0, we have bigger problems
+        float total_hashrate = HASHRATE_MONITOR_MODULE->total_measurement[asic_nr].hashrate;
+        
+        if (total_hashrate <= 0.0f) {
+            // Total hashrate is 0, skip domain check as the whole ASIC might be offline
+            continue;
+        }
+        
+        for (int domain_nr = 0; domain_nr < hash_domains; domain_nr++) {
+            measurement_t * domain = &HASHRATE_MONITOR_MODULE->domain_measurements[asic_nr][domain_nr];
+            
+            // Check if domain has 0 hashrate but has been initialized (has time_ms set)
+            if (domain->hashrate <= 0.0f && domain->time_ms > 0) {
+                uint32_t time_since_last_update = current_time_ms - domain->time_ms;
+                
+                // Only log if the domain has been at 0 for longer than the threshold
+                if (time_since_last_update > DOMAIN_LOST_THRESHOLD_MS) {
+                    ESP_LOGW(TAG, "ASIC %d Domain %d appears lost - 0 hashrate for %lu ms while total hashrate is %.2f GH/s",
+                             asic_nr, domain_nr, (unsigned long)time_since_last_update, total_hashrate);
+                }
+            }
+            // Check for domain reporting significantly lower than expected (less than 10% of fair share)
+            else if (domain->hashrate > 0.0f && total_hashrate > 0.0f) {
+                float expected_per_domain = total_hashrate / hash_domains;
+                if (domain->hashrate < (expected_per_domain * 0.1f)) {
+                    ESP_LOGW(TAG, "ASIC %d Domain %d underperforming - %.2f GH/s vs expected ~%.2f GH/s",
+                             asic_nr, domain_nr, domain->hashrate, expected_per_domain);
+                }
+            }
+        }
+    }
 }
 
 static void init_averages()
@@ -165,6 +217,9 @@ void hashrate_monitor_task(void *pvParameters)
         SYSTEM_MODULE->error_percentage = current_hashrate > 0 ? error_hashrate / current_hashrate * 100.f : 0;
 
         if(current_hashrate > 0.0f) update_hashrate_averages(SYSTEM_MODULE);
+
+        // Check for lost domains
+        check_domain_health(GLOBAL_STATE);
 
         vTaskDelayUntil(&taskWakeTime, POLL_RATE / portTICK_PERIOD_MS);
     }
