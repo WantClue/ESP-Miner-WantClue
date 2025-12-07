@@ -237,7 +237,9 @@ void BAP_send_request(bap_parameter_t param, GlobalState *state) {
             BAP_send_message(BAP_CMD_RES, "poolPort", port_str);
             BAP_send_message(BAP_CMD_RES, "poolUser", state->SYSTEM_MODULE.pool_user);
             break;
-            
+        case BAP_PARAM_SHARES:
+            BAP_send_message(BAP_CMD_RES, "sharesAccepted", state->SYSTEM_MODULE.shares_accepted_str);
+            break;
         default:
             ESP_LOGE(TAG, "Unsupported request parameter: %d", param);
             break;
