@@ -1,5 +1,7 @@
 #include "unity.h"
-#include "common.h"
+
+// Use relative path
+#include "../include/common.h"
 
 // Test _reverse_bits function
 TEST_CASE("Reverse bits - 0x00", "[common]")
