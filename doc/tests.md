@@ -99,15 +99,15 @@ idf.py -p /dev/ttyACM0 monitor
 | `crc16()` | ❌ | ✅ | **Can add** - pure algorithm |
 | `crc16_false()` | ❌ | ✅ | **Can add** - pure algorithm |
 
-### `common.c` - 0/5 functions tested (0%)
+### `common.c` - 3/5 functions tested (60%)
 
-| Function | Tested | QEMU | Notes |
-|----------|:------:|:----:|-------|
-| `_reverse_bits()` | ❌ | ✅ | **Can add** - pure algorithm |
-| `_largest_power_of_two()` | ❌ | ✅ | **Can add** - pure algorithm |
-| `count_asic_chips()` | ❌ | ✅ | **Can add** - pure algorithm |
-| `get_difficulty_mask()` | ❌ | ✅ | **Can add** - pure algorithm |
-| `receive_work()` | ❌ | ❌ | Hardware UART required |
+| Function | Tested | QEMU | Test File | Notes |
+|----------|:------:|:----:|-----------|-------|
+| `_reverse_bits()` | ✅ | ✅ | `test_common.c` | 9 test cases |
+| `_largest_power_of_two()` | ✅ | ✅ | `test_common.c` | 13 test cases |
+| `get_difficulty_mask()` | ✅ | ✅ | `test_common.c` | 6 test cases |
+| `count_asic_chips()` | ❌ | ❌ | - | Hardware UART/SERIAL required |
+| `receive_work()` | ❌ | ❌ | - | Hardware UART/SERIAL required |
 
 ### ASIC Drivers (BM1366/BM1368/BM1370/BM1397)
 
@@ -139,9 +139,9 @@ These require physical ASIC hardware and cannot run on QEMU. The `test_job_comma
 ┌─────────────────────────────────────────────────────┐
 │ CURRENT COVERAGE                                    │
 ├─────────────────────────────────────────────────────┤
-│ Functions with tests:  14 / ~50 testable (28%)      │
-│ Active test cases:     ~25                          │
-│ QEMU compatible:       ~22 tests                    │
+│ Functions with tests:  17 / ~50 testable (34%)      │
+│ Active test cases:     ~53                          │
+│ QEMU compatible:       ~50 tests                    │
 │ Hardware only:         ~3 tests (tagged [not-on-qemu])│
 └─────────────────────────────────────────────────────┘
 ```
@@ -155,8 +155,8 @@ These require physical ASIC hardware and cannot run on QEMU. The `test_job_comma
 1. **`crc.c`** tests for `crc5()`, `crc16()`, `crc16_false()`
    - Pure CRC algorithms with known test vectors
    
-2. **`common.c`** tests for `_reverse_bits()`, `_largest_power_of_two()`, `get_difficulty_mask()`
-   - Simple bit manipulation functions
+2. ~~**`common.c`** tests for `_reverse_bits()`, `_largest_power_of_two()`, `get_difficulty_mask()`~~ ✅ **DONE**
+   - Added in `test_common.c` with 28 test cases
    
 3. **`utils.c`** tests for `midstate_sha256_bin()`, `le256todouble()`, `suffixString()`, `hashCounterToGhs()`
    - Math and string formatting functions
