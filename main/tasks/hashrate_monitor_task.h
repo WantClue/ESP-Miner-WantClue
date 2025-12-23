@@ -10,9 +10,17 @@ typedef struct {
 } measurement_t;
 
 typedef struct {
+    uint32_t zero_count;
+    uint32_t total_failures;
+    uint64_t last_failure_time;
+    bool is_failed;
+} domain_health_t;
+
+typedef struct {
     measurement_t* total_measurement;
     measurement_t** domain_measurements;
     measurement_t* error_measurement;
+    domain_health_t** domain_health;
 
     bool is_initialized;
 } HashrateMonitorModule;

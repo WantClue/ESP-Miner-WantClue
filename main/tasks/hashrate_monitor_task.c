@@ -49,6 +49,7 @@ static void clear_measurements(GlobalState * GLOBAL_STATE)
     memset(HASHRATE_MONITOR_MODULE->total_measurement, 0, asic_count * sizeof(measurement_t));
     memset(HASHRATE_MONITOR_MODULE->domain_measurements[0], 0, asic_count * hash_domains * sizeof(measurement_t));
     memset(HASHRATE_MONITOR_MODULE->error_measurement, 0, asic_count * sizeof(measurement_t));
+    memset(HASHRATE_MONITOR_MODULE->domain_health[0], 0, asic_count * hash_domains * sizeof(domain_health_t));
 }
 
 static void update_hashrate(measurement_t * measurement, uint32_t value)
@@ -146,6 +147,12 @@ void hashrate_monitor_task(void *pvParameters)
     }
     HASHRATE_MONITOR_MODULE->error_measurement = heap_caps_malloc(asic_count * sizeof(measurement_t), MALLOC_CAP_SPIRAM);
 
+    domain_health_t* health_data = heap_caps_malloc(asic_count * hash_domains * sizeof(domain_health_t), MALLOC_CAP_SPIRAM);
+    HASHRATE_MONITOR_MODULE->domain_health = heap_caps_malloc(asic_count * sizeof(domain_health_t*), MALLOC_CAP_SPIRAM);
+    for (size_t asic_nr = 0; asic_nr < asic_count; asic_nr++) {
+        HASHRATE_MONITOR_MODULE->domain_health[asic_nr] = health_data + (asic_nr * hash_domains);
+    }
+
     clear_measurements(GLOBAL_STATE);
 
     init_averages();
@@ -193,16 +200,37 @@ void hashrate_monitor_register_read(void *pvParameters, register_type_t register
             update_hash_counter(&HASHRATE_MONITOR_MODULE->total_measurement[asic_nr], value, time_ms);
             break;
         case REGISTER_DOMAIN_0_COUNT:
-            update_hash_counter(&HASHRATE_MONITOR_MODULE->domain_measurements[asic_nr][0], value, time_ms);
-            break;
         case REGISTER_DOMAIN_1_COUNT:
-            update_hash_counter(&HASHRATE_MONITOR_MODULE->domain_measurements[asic_nr][1], value, time_ms);
-            break;
         case REGISTER_DOMAIN_2_COUNT:
-            update_hash_counter(&HASHRATE_MONITOR_MODULE->domain_measurements[asic_nr][2], value, time_ms);
-            break;
         case REGISTER_DOMAIN_3_COUNT:
-            update_hash_counter(&HASHRATE_MONITOR_MODULE->domain_measurements[asic_nr][3], value, time_ms);
+            {
+                int domain_idx = register_type - REGISTER_DOMAIN_0_COUNT;
+                domain_health_t *health = &HASHRATE_MONITOR_MODULE->domain_health[asic_nr][domain_idx];
+                
+                // Track zero register reads (potential shutdown/failure)
+                if (value == 0) {
+                    health->zero_count++;
+                    
+                    if (!health->is_failed) {
+                        // First failure detection
+                        health->is_failed = true;
+                        health->total_failures++;
+                        health->last_failure_time = time_ms;
+                        ESP_LOGW(TAG, "ASIC %d Domain %d FAILED - register read 0", asic_nr, domain_idx);
+                    }
+                } else {
+                    // Domain recovered
+                    if (health->is_failed) {
+                        ESP_LOGI(TAG, "ASIC %d Domain %d RECOVERED after %u zero reads",
+                                 asic_nr, domain_idx, health->zero_count);
+                        health->is_failed = false;
+                    }
+                    health->zero_count = 0;
+                }
+                
+                update_hash_counter(&HASHRATE_MONITOR_MODULE->domain_measurements[asic_nr][domain_idx],
+                                   value, time_ms);
+            }
             break;
         case REGISTER_ERROR_COUNT:
             update_hash_counter(&HASHRATE_MONITOR_MODULE->error_measurement[asic_nr], value, time_ms);
