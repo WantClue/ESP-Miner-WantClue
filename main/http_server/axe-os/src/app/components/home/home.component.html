@@ -15,9 +15,24 @@
         />
     </ng-container>
 
-    <p-message *ngIf="info.blockFound" severity="success" styleClass="w-full mb-4 py-4 border-round-xl"
-        text="Today is your lucky day! Your device has found a block 🎉">
-    </p-message>
+    <div *ngIf="info.blockFound" class="relative w-full mb-4">
+        <p-message
+            severity="success"
+            styleClass="w-full py-4 border-round-xl"
+            text="Today is your lucky day! Your device has found a block 🎉">
+        </p-message>
+        <button
+            pButton
+            type="button"
+            icon="pi pi-times"
+            class="p-button-text p-button-sm absolute"
+            style="top: 0.5rem; right: 0.5rem; z-index: 1000; color: #000000;"
+            (click)="clearBlockFound()"
+            pTooltip="Dismiss"
+            tooltipPosition="left"
+            aria-label="Dismiss block found message">
+        </button>
+    </div>
 
     <div class="grid">
         <div class="col-12 md:col-6 xl:col-3">

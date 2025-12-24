@@ -538,6 +538,19 @@ export class HomeComponent implements OnInit, OnDestroy {
       });
   }
 
+  public clearBlockFound() {
+    this.systemService.updateSystem('', { blockFound: 0 })
+      .pipe(this.loadingService.lockUIUntilComplete())
+      .subscribe({
+        next: () => {
+          this.toastr.success('Block found status cleared');
+        },
+        error: (err: HttpErrorResponse) => {
+          this.toastr.error(`Error clearing block found status: ${err.message}`);
+        }
+      });
+  }
+
   private setTitle(info: ISystemInfo, systemInfoError: ISystemInfoError) {
     const parts = [this.pageDefaultTitle];
 
