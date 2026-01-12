@@ -147,6 +147,7 @@ export class SystemApiService {
     }
 
     if (environment.production && this.generatedSystemService) {
+      console.log(columnList)
       return this.generatedSystemService.getSystemStatistics(columnList).pipe(timeout(API_TIMEOUT));
     }
 
@@ -212,7 +213,7 @@ export class SystemApiService {
     }
 
     if (environment.production && uri) {
-      return this.httpClient.post(`${uri}/api/system/restart`, {}, { responseType: 'text' });
+      return this.httpClient.post(`${uri}/api/system/restart`, {});
     }
 
     return of('Device restarted (mock)');
@@ -224,7 +225,7 @@ export class SystemApiService {
     }
 
     if (environment.production && uri) {
-      return this.httpClient.post(`${uri}/api/system/identify`, {}, { responseType: 'text' });
+      return this.httpClient.post(`${uri}/api/system/identify`, {});
     }
 
     return of('Device identified (mock)');
