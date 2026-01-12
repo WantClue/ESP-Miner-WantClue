@@ -751,11 +751,16 @@ static esp_err_t POST_restart(httpd_req_t * req)
 
     ESP_LOGI(TAG, "Restarting System because of API Request");
 
-    httpd_resp_set_type(req, "text/plain");
+    httpd_resp_set_type(req, "application/json");
+
+    cJSON * root = cJSON_CreateObject();
+
+    cJSON_AddStringToObject(root, "message", "System will restart shortly.");
 
     // Send HTTP response before restarting
-    const char* resp_str = "System will restart shortly.";
-    httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
+    esp_err_t res = HTTP_send_json(req, root, &api_common_prebuffer_len);
+
+    cJSON_Delete(root);
 
     // Delay to ensure the response is sent
     vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -764,7 +769,7 @@ static esp_err_t POST_restart(httpd_req_t * req)
     esp_restart();
 
     // This return statement will never be reached, but it's good practice to include it
-    return ESP_OK;
+    return res;
 }
 
 static const char* esp_reset_reason_to_string(esp_reset_reason_t reason) {
