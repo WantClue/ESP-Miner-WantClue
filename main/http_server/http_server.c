@@ -754,6 +754,10 @@ static esp_err_t POST_restart(httpd_req_t * req)
     httpd_resp_set_type(req, "application/json");
 
     cJSON * root = cJSON_CreateObject();
+    if (root == NULL) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Memory allocation failed");
+        return ESP_OK;
+    }
 
     cJSON_AddStringToObject(root, "message", "System will restart shortly.");
 
