@@ -147,7 +147,6 @@ export class SystemApiService {
     }
 
     if (environment.production && this.generatedSystemService) {
-      console.log(columnList)
       return this.generatedSystemService.getSystemStatistics(columnList).pipe(timeout(API_TIMEOUT));
     }
 
