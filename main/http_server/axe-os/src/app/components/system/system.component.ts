@@ -110,7 +110,7 @@ export class SystemComponent implements OnInit, OnDestroy {
       .pipe(this.loadingService.lockUIUntilComplete())
       .subscribe({
         next: (result) => {
-          this.toastr.success(result);
+          this.toastr.success(result.message);
         },
         error: (err: HttpErrorResponse) => {
           this.toastr.error(`Could not identify device. ${err.message}`);

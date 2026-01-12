@@ -718,17 +718,23 @@ static esp_err_t POST_identify(httpd_req_t * req)
 
     ESP_LOGI(TAG, "Identify mode enabled for 30s");
 
-    httpd_resp_set_type(req, "text/plain");
+    httpd_resp_set_type(req, "application/json");
+
+    cJSON * root = cJSON_CreateObject();
 
     if (GLOBAL_STATE->SYSTEM_MODULE.identify_mode_time_ms > 0) {
         GLOBAL_STATE->SYSTEM_MODULE.identify_mode_time_ms = 0;
-        httpd_resp_send(req, "The device no longer says \"Hi!\".", HTTPD_RESP_USE_STRLEN);
+        cJSON_AddStringToObject(root, "message", "The device no longer says \"Hi!\".");
     } else {
         GLOBAL_STATE->SYSTEM_MODULE.identify_mode_time_ms = 30000;
-        httpd_resp_send(req, "The device says \"Hi!\" for 30 seconds.", HTTPD_RESP_USE_STRLEN);
+         cJSON_AddStringToObject(root, "message", "The device says \"Hi!\" for 30 seconds.");
     }
 
-    return ESP_OK;
+    esp_err_t res = HTTP_send_json(req, root, &api_common_prebuffer_len);
+
+    cJSON_Delete(root);
+
+    return res;
 }
 
 static esp_err_t POST_restart(httpd_req_t * req)
