@@ -805,9 +805,9 @@ paths:
         '200':
           description: Device identify initiated
           content:
-           application/json:
+            application/json:
               schema:
-                "$ref": "#/components/schemas/GenericResponse"
+                '$ref': '#/components/schemas/GenericResponse'
         '401':
           description: Unauthorized - Client not in allowed network range
         '500':
