@@ -8,8 +8,10 @@ void SYSTEM_init_system(GlobalState * GLOBAL_STATE);
 void SYSTEM_init_versions(GlobalState * GLOBAL_STATE);
 esp_err_t SYSTEM_init_peripherals(GlobalState * GLOBAL_STATE);
 
-void SYSTEM_notify_accepted_share(GlobalState * GLOBAL_STATE);
-void SYSTEM_notify_rejected_share(GlobalState * GLOBAL_STATE, char * error_msg);
+void SYSTEM_notify_submitted_share(GlobalState * GLOBAL_STATE, int request_id, double diff, uint8_t job_id);
+void SYSTEM_clear_submitted_share(GlobalState * GLOBAL_STATE, int request_id);
+void SYSTEM_notify_accepted_share(GlobalState * GLOBAL_STATE, int request_id);
+void SYSTEM_notify_rejected_share(GlobalState * GLOBAL_STATE, int request_id, char * error_msg);
 void SYSTEM_notify_found_nonce(GlobalState * GLOBAL_STATE, double diff, uint8_t job_id);
 void SYSTEM_notify_new_ntime(GlobalState * GLOBAL_STATE, uint32_t ntime);
 

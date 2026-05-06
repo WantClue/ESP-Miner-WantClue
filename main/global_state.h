@@ -22,11 +22,19 @@
 #define DIFF_STRING_SIZE 10
 #define MAX_BLOCK_SIGNALS 8
 #define MAX_BLOCK_SIGNAL_LEN 16
+#define SUBMITTED_SHARE_HISTORY_SIZE 1024
 
 typedef struct {
     char message[64];
     uint32_t count;
 } RejectedReasonStat;
+
+typedef struct {
+    int request_id;
+    uint64_t diff;
+    bool block_candidate;
+    bool pending;
+} SubmittedShare;
 
 typedef struct
 {
@@ -46,6 +54,7 @@ typedef struct
     char best_diff_string[DIFF_STRING_SIZE];
     uint64_t best_session_nonce_diff;
     char best_session_diff_string[DIFF_STRING_SIZE];
+    SubmittedShare submitted_shares[SUBMITTED_SHARE_HISTORY_SIZE];
     int block_found;
     bool show_new_block;
     char * ssid;

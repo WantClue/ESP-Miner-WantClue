@@ -47,6 +47,7 @@ void SYSTEM_init_system(GlobalState * GLOBAL_STATE)
     module->shares_rejected = 0;
     module->best_nonce_diff = nvs_config_get_u64(NVS_CONFIG_BEST_DIFF);
     module->best_session_nonce_diff = 0;
+    memset(module->submitted_shares, 0, sizeof(module->submitted_shares));
     module->start_time = esp_timer_get_time();
     module->lastClockSync = 0;
     module->block_found = 0;
@@ -244,11 +245,95 @@ esp_err_t SYSTEM_init_peripherals(GlobalState * GLOBAL_STATE) {
     return ESP_OK;
 }
 
-void SYSTEM_notify_accepted_share(GlobalState * GLOBAL_STATE)
+static bool consume_submitted_share(GlobalState * GLOBAL_STATE, int request_id, SubmittedShare *submitted_share)
+{
+    if (request_id < 0) {
+        return false;
+    }
+
+    bool found = false;
+    taskENTER_CRITICAL(&GLOBAL_STATE->stratum_mux);
+    SubmittedShare *share = &GLOBAL_STATE->SYSTEM_MODULE.submitted_shares[request_id % SUBMITTED_SHARE_HISTORY_SIZE];
+    if (share->pending && share->request_id == request_id) {
+        *submitted_share = *share;
+        share->pending = false;
+        found = true;
+    }
+    taskEXIT_CRITICAL(&GLOBAL_STATE->stratum_mux);
+
+    return found;
+}
+
+void SYSTEM_notify_submitted_share(GlobalState * GLOBAL_STATE, int request_id, double diff, uint8_t job_id)
 {
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
+    double network_diff = networkDifficulty(GLOBAL_STATE->ASIC_TASK_MODULE.active_jobs[job_id]->target);
+    int overwritten_request_id = -1;
+
+    taskENTER_CRITICAL(&GLOBAL_STATE->stratum_mux);
+    SubmittedShare *share = &module->submitted_shares[request_id % SUBMITTED_SHARE_HISTORY_SIZE];
+    if (share->pending && share->request_id != request_id) {
+        overwritten_request_id = share->request_id;
+    }
+
+    share->request_id = request_id;
+    share->diff = (uint64_t) diff;
+    share->block_candidate = diff >= network_diff;
+    share->pending = true;
+    taskEXIT_CRITICAL(&GLOBAL_STATE->stratum_mux);
+
+    if (overwritten_request_id >= 0) {
+        ESP_LOGW(TAG, "Overwriting pending submitted share id %d with id %d", overwritten_request_id, request_id);
+    }
+
+    if (diff >= network_diff) {
+        ESP_LOGI(TAG, "Submitted block candidate: %f >= %f", diff, network_diff);
+    }
+}
+
+void SYSTEM_clear_submitted_share(GlobalState * GLOBAL_STATE, int request_id)
+{
+    if (request_id < 0) {
+        return;
+    }
+
+    taskENTER_CRITICAL(&GLOBAL_STATE->stratum_mux);
+    SubmittedShare *share = &GLOBAL_STATE->SYSTEM_MODULE.submitted_shares[request_id % SUBMITTED_SHARE_HISTORY_SIZE];
+    if (share->pending && share->request_id == request_id) {
+        share->pending = false;
+    }
+    taskEXIT_CRITICAL(&GLOBAL_STATE->stratum_mux);
+}
+
+void SYSTEM_notify_accepted_share(GlobalState * GLOBAL_STATE, int request_id)
+{
+    SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
+    SubmittedShare submitted_share;
+    bool has_submitted_share = consume_submitted_share(GLOBAL_STATE, request_id, &submitted_share);
 
     module->shares_accepted++;
+
+    if (!has_submitted_share) {
+        return;
+    }
+
+    if (submitted_share.diff > module->best_session_nonce_diff) {
+        module->best_session_nonce_diff = submitted_share.diff;
+        suffixString(submitted_share.diff, module->best_session_diff_string, DIFF_STRING_SIZE, 0);
+    }
+
+    if (submitted_share.block_candidate) {
+        module->block_found++;
+        module->show_new_block = true;
+        ESP_LOGI(TAG, "FOUND BLOCK accepted by pool (count: %d)", module->block_found);
+    }
+
+    if (submitted_share.diff > module->best_nonce_diff) {
+        module->best_nonce_diff = submitted_share.diff;
+        nvs_config_set_u64(NVS_CONFIG_BEST_DIFF, module->best_nonce_diff);
+        suffixString(submitted_share.diff, module->best_diff_string, DIFF_STRING_SIZE, 0);
+        ESP_LOGI(TAG, "New best accepted difficulty: %s", module->best_diff_string);
+    }
 }
 
 static int compare_rejected_reason_stats(const void *a, const void *b) {
@@ -257,11 +342,12 @@ static int compare_rejected_reason_stats(const void *a, const void *b) {
     return (eb->count > ea->count) - (ea->count > eb->count);
 }
 
-void SYSTEM_notify_rejected_share(GlobalState * GLOBAL_STATE, char * error_msg)
+void SYSTEM_notify_rejected_share(GlobalState * GLOBAL_STATE, int request_id, char * error_msg)
 {
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
 
     module->shares_rejected++;
+    SYSTEM_clear_submitted_share(GLOBAL_STATE, request_id);
 
     for (int i = 0; i < module->rejected_reason_stats_count; i++) {
         if (strncmp(module->rejected_reason_stats[i].message, error_msg, sizeof(module->rejected_reason_stats[i].message) - 1) == 0) {
@@ -303,31 +389,10 @@ void SYSTEM_notify_new_ntime(GlobalState * GLOBAL_STATE, uint32_t ntime)
 
 void SYSTEM_notify_found_nonce(GlobalState * GLOBAL_STATE, double diff, uint8_t job_id)
 {
-    SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
-
-    if ((uint64_t) diff > module->best_session_nonce_diff) {
-        module->best_session_nonce_diff = (uint64_t) diff;
-        suffixString((uint64_t) diff, module->best_session_diff_string, DIFF_STRING_SIZE, 0);
-    }
-
     double network_diff = networkDifficulty(GLOBAL_STATE->ASIC_TASK_MODULE.active_jobs[job_id]->target);
     if (diff >= network_diff) {
-        module->block_found++;
-        module->show_new_block = true;
-        ESP_LOGI(TAG, "FOUND BLOCK!!!!!!!!!!!!!!!!!!!!!! %f >= %f (count: %d)", diff, network_diff, module->block_found);
+        ESP_LOGI(TAG, "Found block candidate: %f >= %f", diff, network_diff);
     }
-
-    if ((uint64_t) diff <= module->best_nonce_diff) {
-        return;
-    }
-    module->best_nonce_diff = (uint64_t) diff;
-
-    nvs_config_set_u64(NVS_CONFIG_BEST_DIFF, module->best_nonce_diff);
-
-    // make the best_nonce_diff into a string
-    suffixString((uint64_t) diff, module->best_diff_string, DIFF_STRING_SIZE, 0);
-
-    ESP_LOGI(TAG, "New best difficulty: %s", module->best_diff_string);
 }
 
 static esp_err_t ensure_overheat_mode_config() {

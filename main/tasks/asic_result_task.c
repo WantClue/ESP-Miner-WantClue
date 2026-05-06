@@ -71,6 +71,7 @@ void ASIC_result_task(void *pvParameters)
                 ESP_LOGW(TAG, "No stratum connection, dropping share (job 0x%02X)", job_id);
             } else {
                 uint64_t sent_time_us = 0;
+                SYSTEM_notify_submitted_share(GLOBAL_STATE, uid, nonce_diff, job_id);
                 int ret = STRATUM_V1_submit_share(
                     transport,
                     uid,
@@ -84,6 +85,7 @@ void ASIC_result_task(void *pvParameters)
 
                 if (ret < 0) {
                     ESP_LOGW(TAG, "Unable to write share to socket (ret: %d, errno %d: %s)", ret, errno, strerror(errno));
+                    SYSTEM_clear_submitted_share(GLOBAL_STATE, uid);
                     // stratum_task recv loop will detect a broken connection on its next read and handle reconnection
                 }
 
