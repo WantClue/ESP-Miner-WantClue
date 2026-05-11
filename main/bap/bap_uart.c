@@ -147,19 +147,13 @@ static void uart_receive_task(void *pvParameters) {
                     if (message_len > 1 && message_len < BAP_MAX_MESSAGE_LEN) {
                         message[message_len++] = c;
                         message[message_len] = '\0';
-                        
-                        //ESP_LOGI(TAG, "Received complete message: %s", message);
+
                         BAP_parse_message(message);
-                        
-                        if (c == '\r') {
-                            ESP_LOGD(TAG, "Got CR, waiting for possible LF");
-                        } else {
-                            in_message = false;
-                        }
                     } else if (message_len >= BAP_MAX_MESSAGE_LEN) {
                         ESP_LOGE(TAG, "Message too long, discarding");
-                        in_message = false;
                     }
+                    in_message = false;
+                    message_len = 0;
                 }
                 else if (in_message && message_len < BAP_MAX_MESSAGE_LEN) {
                     message[message_len++] = c;
