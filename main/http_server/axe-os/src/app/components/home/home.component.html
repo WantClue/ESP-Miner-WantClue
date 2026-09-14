@@ -351,6 +351,19 @@
               }
             </div>
           }
+
+          @if (info.throttleEvents.length) {
+            @let event = info.throttleEvents[0];
+            <div class="text-sm border-t border-surface pt-3 mt-3">
+              <div class="font-medium text-yellow-500 mb-1">Thermal throttle recorded</div>
+              <div class="text-secondary">
+                {{event.reason}} reduced ASIC settings from
+                {{event.frequencyBefore | number: '1.0-0'}} MHz / {{event.voltageBefore / 1000 | number: '1.2-2'}} V
+                to
+                {{event.frequencyAfter | number: '1.0-0'}} MHz / {{event.voltageAfter / 1000 | number: '1.2-2'}} V.
+              </div>
+            </div>
+          }
         </div>
       </div>
     </div>

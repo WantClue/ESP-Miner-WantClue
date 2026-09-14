@@ -11,6 +11,9 @@
 #include "asic_init.h"
 #include "asic_reset.h"
 #include "driver/uart.h"
+#include "cJSON.h"
+#include "esp_timer.h"
+#include <stdlib.h>
 
 #define POLL_RATE 100
 #define MAX_TEMP 90.0
@@ -25,8 +28,72 @@
 #define TPS546_MAX_TEMP 145.0
 
 #define ASIC_REDUCTION 100.0
+#define THROTTLE_LOG_LIMIT 8
 
 static const char * TAG = "power_management";
+
+static const char * throttle_reason(float vr_temp, bool asic_overheat)
+{
+    if (vr_temp > TPS546_THROTTLE_TEMP && asic_overheat) {
+        return "VR and ASIC temperature";
+    }
+    if (vr_temp > TPS546_THROTTLE_TEMP) {
+        return "VR temperature";
+    }
+    return "ASIC temperature";
+}
+
+static void record_throttle_event(GlobalState * GLOBAL_STATE, uint16_t voltage_before, uint16_t voltage_after, float frequency_before, float frequency_after, bool asic_overheat)
+{
+    PowerManagementModule * power_management = &GLOBAL_STATE->POWER_MANAGEMENT_MODULE;
+    char *existing_log = nvs_config_get_string(NVS_CONFIG_THROTTLE_LOG);
+    cJSON *existing_events = existing_log ? cJSON_Parse(existing_log) : NULL;
+    cJSON *events = cJSON_CreateArray();
+
+    cJSON *event = cJSON_CreateObject();
+    if (!events || !event) {
+        ESP_LOGE(TAG, "Unable to allocate throttle event log");
+        if (events) cJSON_Delete(events);
+        if (event) cJSON_Delete(event);
+        if (existing_events) cJSON_Delete(existing_events);
+        free(existing_log);
+        return;
+    }
+
+    cJSON_AddNumberToObject(event, "uptimeSeconds", (uint32_t)(esp_timer_get_time() / 1000000));
+    cJSON_AddStringToObject(event, "reason", throttle_reason(power_management->vr_temp, asic_overheat));
+    cJSON_AddNumberToObject(event, "vrTemp", power_management->vr_temp);
+    cJSON_AddNumberToObject(event, "temp", power_management->chip_temp_avg);
+    cJSON_AddNumberToObject(event, "temp2", power_management->chip_temp2_avg);
+    cJSON_AddNumberToObject(event, "voltageBefore", voltage_before);
+    cJSON_AddNumberToObject(event, "voltageAfter", voltage_after);
+    cJSON_AddNumberToObject(event, "frequencyBefore", frequency_before);
+    cJSON_AddNumberToObject(event, "frequencyAfter", frequency_after);
+    cJSON_AddItemToArray(events, event);
+
+    if (existing_events && cJSON_IsArray(existing_events)) {
+        int existing_count = cJSON_GetArraySize(existing_events);
+        for (int i = 0; i < existing_count && cJSON_GetArraySize(events) < THROTTLE_LOG_LIMIT; i++) {
+            cJSON *old_event = cJSON_GetArrayItem(existing_events, i);
+            cJSON *copy = cJSON_Duplicate(old_event, true);
+            if (copy) {
+                cJSON_AddItemToArray(events, copy);
+            }
+        }
+    }
+
+    char *new_log = cJSON_PrintUnformatted(events);
+    if (new_log) {
+        nvs_config_set_string_immediate(NVS_CONFIG_THROTTLE_LOG, new_log);
+        ESP_LOGW(TAG, "Recorded thermal throttle event: %umV -> %umV, %.0fMHz -> %.0fMHz",
+                 voltage_before, voltage_after, frequency_before, frequency_after);
+        free(new_log);
+    }
+
+    cJSON_Delete(events);
+    if (existing_events) cJSON_Delete(existing_events);
+    free(existing_log);
+}
 
 static void mining_stop(GlobalState * GLOBAL_STATE)
 {
@@ -210,6 +277,8 @@ void POWER_MANAGEMENT_task(void * pvParameters)
             uint16_t reduced_voltage = last_known_asic_voltage > ASIC_REDUCTION ? last_known_asic_voltage - ASIC_REDUCTION : 1000;
             float reduced_asic_frequency = last_known_asic_frequency > ASIC_REDUCTION ? last_known_asic_frequency - ASIC_REDUCTION : 400.0;
             
+            record_throttle_event(GLOBAL_STATE, last_known_asic_voltage, reduced_voltage, last_known_asic_frequency, reduced_asic_frequency, asic_overheat);
+
             nvs_config_set_u16(NVS_CONFIG_ASIC_VOLTAGE, reduced_voltage);
             nvs_config_set_float(NVS_CONFIG_ASIC_FREQUENCY, reduced_asic_frequency);
             

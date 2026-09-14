@@ -216,6 +216,47 @@ components:
           nullable: true
           description: Partition space usage percentage (0-100)
 
+    ThrottleEvent:
+      type: object
+      required:
+        - uptimeSeconds
+        - reason
+        - vrTemp
+        - temp
+        - temp2
+        - voltageBefore
+        - voltageAfter
+        - frequencyBefore
+        - frequencyAfter
+      properties:
+        uptimeSeconds:
+          type: number
+          description: Device uptime in seconds when the thermal throttle event was recorded
+        reason:
+          type: string
+          description: Thermal condition that caused throttling
+        vrTemp:
+          type: number
+          description: Voltage regulator temperature at throttle time
+        temp:
+          type: number
+          description: Primary ASIC temperature at throttle time
+        temp2:
+          type: number
+          description: Secondary ASIC temperature at throttle time, if available
+        voltageBefore:
+          type: number
+          description: ASIC core voltage before throttling, in mV
+        voltageAfter:
+          type: number
+          description: ASIC core voltage after throttling, in mV
+        frequencyBefore:
+          type: number
+          description: ASIC frequency before throttling, in MHz
+        frequencyAfter:
+          type: number
+          description: ASIC frequency after throttling, in MHz
+
     SystemInfo:
       type: object
       required:
@@ -297,6 +338,7 @@ components:
         - stratumDecodeCoinbase
         - temp
         - temp2
+        - throttleEvents
         - uptimeSeconds
         - useNTP
         - version
@@ -548,6 +590,11 @@ components:
           description: Reason(s) shares were rejected
           items:
             $ref: '#/components/schemas/SharesRejectedReason'
+        throttleEvents:
+          type: array
+          description: Recent thermal throttle events stored in NVS, newest first
+          items:
+            $ref: '#/components/schemas/ThrottleEvent'
         smallCoreCount:
           type: number
           description: Number of small cores
@@ -1265,6 +1312,25 @@ paths:
             application/json:
               schema:
                 '$ref': '#/components/schemas/GenericResponse'
+        '401':
+          description: Unauthorized - Client not in allowed network range
+        '500':
+          description: Internal server error
+
+  /api/system/throttle-events:
+    delete:
+      summary: Clear thermal throttle event history
+      description: Clears the NVS-backed thermal throttle event history.
+      operationId: clearThrottleEvents
+      tags:
+        - system
+      responses:
+        '200':
+          description: Thermal throttle event history cleared
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
         '401':
           description: Unauthorized - Client not in allowed network range
         '500':

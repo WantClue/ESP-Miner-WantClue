@@ -31,6 +31,7 @@ typedef enum {
     NVS_CONFIG_MIN_FAN_SPEED,
     NVS_CONFIG_TEMP_TARGET,
     NVS_CONFIG_OVERHEAT_MODE,
+    NVS_CONFIG_THROTTLE_LOG,
 
     NVS_CONFIG_USE_CUSTOM_WWW,    
     NVS_CONFIG_LAST_FW_FINGERPRINT,
@@ -123,6 +124,7 @@ esp_err_t nvs_config_init(void);
 char *nvs_config_get_string(NvsConfigKey key);
 char *nvs_config_get_string_indexed(NvsConfigKey key, int index);
 void nvs_config_set_string(NvsConfigKey key, const char * value);
+void nvs_config_set_string_immediate(NvsConfigKey key, const char * value);
 void nvs_config_set_string_indexed(NvsConfigKey key, int index, const char *value);
 uint16_t nvs_config_get_u16(NvsConfigKey key);
 void nvs_config_set_u16(NvsConfigKey key, uint16_t value);

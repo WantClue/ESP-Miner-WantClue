@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "esp_partition.h"
 #include "esp_image_format.h"
 #include "esp_wifi.h"
@@ -41,6 +42,23 @@ static const char *get_reset_reason_str(esp_reset_reason_t reason)
         case ESP_RST_CPU_LOCKUP: return "Reset due to CPU lock up (double exception)";
         default:                 return "Unknown reset";
     }
+}
+
+static void system_api_add_throttle_events(cJSON *root)
+{
+    if (!root) return;
+
+    char *throttle_log = nvs_config_get_string(NVS_CONFIG_THROTTLE_LOG);
+    cJSON *events = throttle_log ? cJSON_Parse(throttle_log) : NULL;
+
+    if (events && cJSON_IsArray(events)) {
+        cJSON_AddItemToObject(root, "throttleEvents", events);
+    } else {
+        if (events) cJSON_Delete(events);
+        cJSON_AddItemToObject(root, "throttleEvents", cJSON_CreateArray());
+    }
+
+    free(throttle_log);
 }
 
 static void system_api_add_telemetry(cJSON *root, GlobalState *g) {
@@ -348,6 +366,7 @@ cJSON* system_api_get_full_json(GlobalState * GLOBAL_STATE) {
 
     system_api_add_telemetry(root, GLOBAL_STATE);
     system_api_add_config(root, GLOBAL_STATE);
+    system_api_add_throttle_events(root);
     system_api_add_hashrate_monitor(root, GLOBAL_STATE);
     system_api_add_partitions(root, GLOBAL_STATE);
 

@@ -192,6 +192,19 @@ export class SystemApiService {
         boardtemp1: 30,
         boardtemp2: 40,
         overheat_mode: 0,
+        throttleEvents: [
+          {
+            uptimeSeconds: 1800,
+            reason: "ASIC temperature",
+            vrTemp: 82,
+            temp: 76.4,
+            temp2: 0,
+            voltageBefore: 1200,
+            voltageAfter: 1100,
+            frequencyBefore: 600,
+            frequencyAfter: 500,
+          }
+        ],
         statsLimit: 720,
 
         partitions: [

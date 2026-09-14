@@ -77,6 +77,7 @@ static Settings settings[NVS_CONFIG_COUNT] = {
     [NVS_CONFIG_MIN_FAN_SPEED]                         = {.nvs_key_name = "minfanspeed",     .type = TYPE_U16,   .default_value = {.u16 = 25},                                          .rest_name = "minFanSpeed",                        .min = 0,  .max = 99},
     [NVS_CONFIG_TEMP_TARGET]                           = {.nvs_key_name = "temptarget",      .type = TYPE_U16,   .default_value = {.u16 = 60},                                          .rest_name = "temptarget",                         .min = 35, .max = 66},
     [NVS_CONFIG_OVERHEAT_MODE]                         = {.nvs_key_name = "overheat_mode",   .type = TYPE_BOOL,                                                                         .rest_name = "overheat_mode",                      .min = 0,  .max = 0},
+    [NVS_CONFIG_THROTTLE_LOG]                          = {.nvs_key_name = "throttle_log",    .type = TYPE_STR,   .default_value = {.str = "[]"}},
 
     [NVS_CONFIG_USE_CUSTOM_WWW]                        = {.nvs_key_name = "use_custom_www",  .type = TYPE_BOOL,  .default_value = {.b = false},                                         .rest_name = "useCustomWWW",                       .min = 0, .max = 1},
     [NVS_CONFIG_LAST_FW_FINGERPRINT]                   = {.nvs_key_name = "last_fw_fp",      .type = TYPE_STR,   .default_value = {.str = ""}},
@@ -623,6 +624,48 @@ void nvs_config_set_string(NvsConfigKey key, const char *value)
     ConfigUpdate update = { .key = key, .type = TYPE_STR, .value.str = queue_str };
     xQueueSend(nvs_save_queue, &update, portMAX_DELAY);
 
+    xSemaphoreGive(nvs_update_mutex);
+}
+
+
+// capturing and writing a throttle reason should not be async and pushed immediate so it resists a potential crash
+void nvs_config_set_string_immediate(NvsConfigKey key, const char *value)
+{
+    Settings *setting = nvs_config_get_settings(key);
+    if (!setting || setting->type != TYPE_STR || setting->array_size > 1 || !value) return;
+
+    xSemaphoreTake(nvs_update_mutex, portMAX_DELAY);
+
+    xSemaphoreTake(nvs_cache_mutex, portMAX_DELAY);
+    if (setting->value[0].str && strcmp(setting->value[0].str, value) == 0 && setting->is_set) {
+        xSemaphoreGive(nvs_cache_mutex);
+        xSemaphoreGive(nvs_update_mutex);
+        return;
+    }
+    xSemaphoreGive(nvs_cache_mutex);
+
+    char *new_str = strdup(value);
+    if (!new_str) {
+        ESP_LOGE(TAG, "Failed to allocate memory for immediate string update");
+        xSemaphoreGive(nvs_update_mutex);
+        return;
+    }
+
+    xSemaphoreTake(nvs_cache_mutex, portMAX_DELAY);
+    char *old_str = setting->value[0].str;
+    setting->value[0].str = new_str;
+    setting->is_set = true;
+    xSemaphoreGive(nvs_cache_mutex);
+
+    esp_err_t ret = nvs_set_str(handle, setting->nvs_key_name, value);
+    if (ret == ESP_OK) {
+        ret = nvs_commit(handle);
+    }
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to synchronously persist %s to NVS: %s", setting->nvs_key_name, esp_err_to_name(ret));
+    }
+
+    if (old_str) free(old_str);
     xSemaphoreGive(nvs_update_mutex);
 }
 

@@ -1364,6 +1364,33 @@ static esp_err_t DELETE_system_pool(httpd_req_t *req)
     return send_res;
 }
 
+static esp_err_t DELETE_throttle_events(httpd_req_t *req)
+{
+    if (is_network_allowed(req) != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_401_UNAUTHORIZED, "Unauthorized");
+    }
+
+    if (set_cors_headers(req) != ESP_OK) {
+        httpd_resp_send_500(req);
+        return ESP_OK;
+    }
+
+    nvs_config_set_string_immediate(NVS_CONFIG_THROTTLE_LOG, "[]");
+    ESP_LOGW(TAG, "Thermal throttle event history cleared by API request");
+
+    cJSON *resp = cJSON_CreateObject();
+    if (resp == NULL) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Memory allocation failed");
+    }
+
+    cJSON_AddStringToObject(resp, "message", "Thermal throttle event history cleared");
+    httpd_resp_set_type(req, "application/json");
+    esp_err_t send_res = HTTP_send_json(req, resp, &api_common_prebuffer_len);
+    cJSON_Delete(resp);
+
+    return send_res;
+}
+
 static esp_err_t POST_mining_pause(httpd_req_t * req)
 {
     if (is_network_allowed(req) != ESP_OK) {
@@ -2045,6 +2072,14 @@ esp_err_t start_rest_server(GlobalState * global_state)
         .user_ctx = rest_context
     };
     httpd_register_uri_handler(server, &system_pool_delete_uri);
+
+    httpd_uri_t throttle_events_delete_uri = {
+        .uri = "/api/system/throttle-events",
+        .method = HTTP_DELETE,
+        .handler = DELETE_throttle_events,
+        .user_ctx = rest_context
+    };
+    httpd_register_uri_handler(server, &throttle_events_delete_uri);
 
     httpd_uri_t update_post_ota_firmware = {
         .uri = "/api/system/OTA", 

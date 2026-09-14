@@ -149,7 +149,8 @@ const mockSystemInfo: ISystemInfo = {
   fallbackStratumPort: 3333,
   fallbackStratumProtocol: 'SV1',
   isUsingFallbackStratum: 0,
-  useFallbackStratum: 0
+  useFallbackStratum: 0,
+  throttleEvents: []
 };
 
 const mockSystemStatistics: ISystemStatistics = {
