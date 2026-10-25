@@ -4,8 +4,8 @@ hostname,data,string,bitaxe
 wifissid,data,string,myssid
 wifipass,data,string,mypass
 stratumurl,data,string,public-pool.io
-stratumport,data,u16,21496
-stratumtls,data,u16,0
+stratumport,data,u16,4333
+stratumtls,data,u16,1
 stratumcert,data,string,x
 stratumuser,data,string,bc1qnp980s5fpp8l94p5cvttmtdqy8rvrq74qly2yrfmzkdsntqzlc5qkc4rkq.bitaxe
 stratumpass,data,string,x
